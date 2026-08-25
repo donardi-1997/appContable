@@ -1,0 +1,51 @@
+from decimal import Decimal
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class ProductCreate(BaseModel):
+    name: str = Field(min_length=2, max_length=160)
+    sku: str | None = None
+    unit: str = "unidad"
+    price: Decimal = Field(default=0, ge=0)
+    stock: Decimal = Field(default=0, ge=0)
+    minimum_stock: Decimal = Field(default=0, ge=0)
+
+
+class ProductRead(ProductCreate):
+    id: int
+    active: bool
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SaleItemCreate(BaseModel):
+    product_id: int
+    quantity: Decimal = Field(gt=0)
+
+
+class SaleCreate(BaseModel):
+    customer_name: str = "Consumidor final"
+    payment_method: str = "efectivo"
+    items: list[SaleItemCreate] = Field(min_length=1)
+
+
+class ExpenseCreate(BaseModel):
+    concept: str = Field(min_length=2, max_length=160)
+    provider: str | None = None
+    value: Decimal = Field(gt=0)
+    payment_method: str = "efectivo"
+    notes: str | None = None
+
+class InventoryAdjustmentCreate(BaseModel):
+    product_id: int
+    movement_type: str
+    quantity: Decimal = Field(gt=0)
+    notes: str | None = None
+
+
+class CashRegisterOpenCreate(BaseModel):
+    opening_amount: Decimal = Field(ge=0)
+
+
+class CashRegisterCloseCreate(BaseModel):
+    closing_amount: Decimal = Field(ge=0)
+

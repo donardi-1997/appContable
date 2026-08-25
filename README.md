@@ -10,6 +10,22 @@ No requiere dependencias: abre `index.html` en el navegador. Para servirlo con N
 npx serve .
 ```
 
+## API local
+
+La API está en `backend/` y usa SQLite por defecto para desarrollo. Con Python 3.11+:
+
+```powershell
+cd backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+```
+
+La documentación interactiva queda disponible en `http://127.0.0.1:8000/docs`.
+
+Endpoints iniciales: `GET/POST /api/products`, `GET/POST /api/sales`, `GET/POST /api/expenses` y `GET /health`.
+
 ## Siguiente fase
 
 1. Crear API FastAPI y PostgreSQL.

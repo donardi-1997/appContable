@@ -1,0 +1,1084 @@
+const state = {
+  sales: [
+    { id: 'V-1042', detail: 'Mesa 07 · 2 productos', total: 185000, payment: 'Tarjeta', status: 'Facturada' },
+    { id: 'V-1041', detail: 'Barra · 5 productos', total: 96000, payment: 'Efectivo', status: 'Facturada' },
+    { id: 'V-1040', detail: 'Mesa 03 · 3 productos', total: 142000, payment: 'QR', status: 'Pendiente' }
+  ],
+  products: [
+    { name: 'Ron Medellín 750ml', stock: 12, unit: 'botellas', price: 180000 },
+    { name: 'Cerveza Club Colombia', stock: 84, unit: 'unidades', price: 12000 },
+    { name: 'Agua con gas', stock: 18, unit: 'unidades', price: 7000 },
+    { name: 'Energizante', stock: 7, unit: 'unidades', price: 14000 }
+  ],
+  expenses: [
+    { concept: 'Compra de licores', provider: 'Distribuciones Gato', value: 480000, date: 'Hoy' },
+    { concept: 'Servicio de sonido', provider: 'Audio Pro', value: 220000, date: 'Ayer' }
+  ],
+  inventoryMovements: [],
+  testInvoices: JSON.parse(localStorage.getItem('gato-test-invoices') || '[]')
+};
+
+const API_BASE = 'http://127.0.0.1:8000';
+
+const money = n =>
+  new Intl.NumberFormat('es-CO', {
+    style: 'currency',
+    currency: 'COP',
+    maximumFractionDigits: 0
+  }).format(Number(n) || 0);
+
+const app = document.querySelector('#app');
+
+const toast = message => {
+  const element = document.querySelector('#toast');
+  element.textContent = message;
+  element.classList.add('show');
+
+  setTimeout(() => {
+    element.classList.remove('show');
+  }, 2400);
+};
+
+
+/* ============================================================
+   DASHBOARD
+============================================================ */
+
+function dashboard() {
+  const total = state.sales.reduce(
+    (acc, sale) => acc + Number(sale.total || 0),
+    0
+  );
+
+  return `
+    <div class="grid metrics">
+      <div class="card metric">
+        <span class="label">Ventas registradas</span>
+        <div class="value">${money(total)}</div>
+        <span class="delta positive">Datos del sistema</span>
+      </div>
+
+      <div class="card metric">
+        <span class="label">Caja actual</span>
+        <div class="value">${money(1250000)}</div>
+        <span class="delta positive">Módulo pendiente</span>
+      </div>
+
+      <div class="card metric">
+        <span class="label">Gastos registrados</span>
+        <div class="value">
+          ${money(state.expenses.reduce((a, e) => a + Number(e.value || 0), 0))}
+        </div>
+        <span class="delta negative">Control de egresos</span>
+      </div>
+
+      <div class="card metric">
+        <span class="label">Productos por reponer</span>
+        <div class="value">
+          ${state.products.filter(p => Number(p.stock) <= Number(p.minimum_stock ?? 20)).length}
+        </div>
+        <span class="delta negative">Revisa inventario</span>
+      </div>
+    </div>
+
+    <div class="grid twocol">
+      <section class="card">
+        <div class="card-head">
+          <h2>Ventas de la semana</h2>
+          <span class="link">Ver reporte →</span>
+        </div>
+
+        <div class="bars">
+          ${[45, 62, 52, 78, 64, 91, 70].map((h, i) => `
+            <div class="bar-wrap">
+              <div class="bar" style="height:${h}%"></div>
+              <span>${['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'][i]}</span>
+            </div>
+          `).join('')}
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>Actividad reciente</h2>
+          <span class="link" data-view="sales">Ver todo →</span>
+        </div>
+
+        <div class="list">
+          ${state.sales.slice(0, 6).map(s => `
+            <div class="row">
+              <div>
+                <strong>${s.id}</strong>
+                <small>${s.detail}</small>
+              </div>
+
+              <div>
+                <strong>${money(s.total)}</strong>
+                <small>${s.payment}</small>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </section>
+    </div>
+
+    <div class="grid twocol">
+      <section class="card">
+        <div class="card-head">
+          <h2>Inventario crítico</h2>
+          <span class="link" data-view="inventory">Gestionar →</span>
+        </div>
+
+        <div class="list">
+          ${state.products
+      .filter(p => Number(p.stock) <= Number(p.minimum_stock ?? 20))
+      .map(p => `
+              <div class="row">
+                <div>
+                  <strong>${p.name}</strong>
+                  <small>${p.stock} ${p.unit} disponibles</small>
+                </div>
+                <span class="pill yellow">Reponer</span>
+              </div>
+            `).join('')}
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Estado tributario</h2>
+
+        <div class="invoice-box">
+          <h3>Facturación electrónica</h3>
+          <p>
+            Ambiente de pruebas activo.
+            Conecta tu proveedor tecnológico para enviar facturas a la DIAN.
+          </p>
+          <span class="pill green">Sandbox activo</span>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+
+/* ============================================================
+   SALES
+============================================================ */
+
+function sales() {
+  return `
+    <div class="toolbar">
+      <button class="btn" id="new-sale">+ Nueva venta</button>
+      <input class="input" placeholder="Buscar venta…" />
+      <select class="select">
+        <option>Este mes</option>
+        <option>Hoy</option>
+      </select>
+    </div>
+
+    <section class="card">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Venta</th>
+            <th>Detalle</th>
+            <th>Método</th>
+            <th>Total</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          ${state.sales.map(s => `
+            <tr>
+              <td><strong>${s.id}</strong></td>
+              <td>${s.detail}</td>
+              <td>${s.payment}</td>
+              <td><strong>${money(s.total)}</strong></td>
+              <td>
+                <span class="pill ${String(s.status).toLowerCase().includes('fact') ? 'green' : 'yellow'}">
+                  ${s.status}
+                </span>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </section>
+  `;
+}
+
+
+/* ============================================================
+   INVENTORY
+============================================================ */
+
+function inventory() {
+  const movementRows = state.inventoryMovements.length
+    ? state.inventoryMovements.map(m => `
+        <tr>
+          <td>
+            <strong>${m.product_name}</strong>
+            <small>${m.notes || ''}</small>
+          </td>
+
+          <td>
+            <span class="pill ${Number(m.quantity) < 0 ? 'yellow' : 'green'
+      }">
+              ${m.movement_type}
+            </span>
+          </td>
+
+          <td>
+            <strong>${Number(m.quantity)}</strong>
+          </td>
+
+          <td>${Number(m.previous_stock)}</td>
+
+          <td>
+            <strong>${Number(m.new_stock)}</strong>
+          </td>
+
+          <td>
+            ${m.reference_type && m.reference_id
+        ? `${m.reference_type} #${m.reference_id}`
+        : '—'
+      }
+          </td>
+
+          <td>
+            ${m.created_at
+        ? new Date(m.created_at).toLocaleString('es-CO')
+        : '—'
+      }
+          </td>
+        </tr>
+      `).join('')
+    : `
+        <tr>
+          <td colspan="7" class="empty">
+            Aún no hay movimientos de inventario registrados.
+          </td>
+        </tr>
+      `;
+
+  return `
+    <div class="toolbar">
+      <button class="btn" id="new-product">+ Agregar producto</button>
+      <input class="input" placeholder="Buscar producto…" />
+    </div>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Inventario actual</h2>
+        <span class="pill">
+          ${state.products.length} productos
+        </span>
+      </div>
+
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Producto</th>
+            <th>Existencia</th>
+            <th>Unidad</th>
+            <th>Precio venta</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          ${state.products.map(p => `
+            <tr>
+              <td>
+                <strong>${p.name}</strong>
+                <small>${p.sku || 'Sin SKU'}</small>
+              </td>
+
+              <td>${Number(p.stock)}</td>
+
+              <td>${p.unit}</td>
+
+              <td>${money(p.price)}</td>
+
+              <td>
+                <span class="pill ${Number(p.stock) <= Number(p.minimum_stock ?? 20)
+      ? 'yellow'
+      : 'green'
+    }">
+                  ${Number(p.stock) <= Number(p.minimum_stock ?? 20)
+      ? 'Stock bajo'
+      : 'Disponible'
+    }
+                </span>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card" style="margin-top:18px">
+      <div class="card-head">
+        <div>
+          <h2>Historial de movimientos</h2>
+          <small style="color:var(--muted)">
+            Entradas y salidas registradas en el inventario
+          </small>
+        </div>
+
+        <span class="pill">
+          ${state.inventoryMovements.length} movimientos
+        </span>
+      </div>
+
+      <div style="overflow-x:auto">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Producto</th>
+              <th>Tipo</th>
+              <th>Cantidad</th>
+              <th>Stock anterior</th>
+              <th>Stock nuevo</th>
+              <th>Referencia</th>
+              <th>Fecha</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            ${movementRows}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  `;
+}
+
+/* ============================================================
+   EXPENSES
+============================================================ */
+
+function expenses() {
+  return `
+    <div class="toolbar">
+      <button class="btn" id="new-expense">+ Registrar gasto</button>
+
+      <select class="select">
+        <option>Todos los gastos</option>
+        <option>Este mes</option>
+      </select>
+    </div>
+
+    <section class="card">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Concepto</th>
+            <th>Proveedor</th>
+            <th>Fecha</th>
+            <th>Valor</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          ${state.expenses.map(e => `
+            <tr>
+              <td><strong>${e.concept}</strong></td>
+              <td>${e.provider}</td>
+              <td>${e.date}</td>
+              <td><strong>${money(e.value)}</strong></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </section>
+  `;
+}
+
+
+/* ============================================================
+   INVOICES
+============================================================ */
+
+function invoices() {
+  const rows = state.testInvoices.length
+    ? state.testInvoices.map(i => `
+        <tr>
+          <td><strong>${i.number}</strong></td>
+          <td>${i.customer}</td>
+          <td>${money(i.total)}</td>
+          <td><span class="pill green">${i.status}</span></td>
+          <td><small>${i.cufe}</small></td>
+        </tr>
+      `).join('')
+    : `
+        <tr>
+          <td colspan="5" class="empty">
+            Aún no hay facturas de prueba.
+          </td>
+        </tr>
+      `;
+
+  return `
+    <div class="grid twocol">
+      <section class="card">
+        <div class="card-head">
+          <h2>Sandbox local</h2>
+          <span class="pill yellow">Solo pruebas</span>
+        </div>
+
+        <p style="color:var(--muted);font-size:13px;line-height:1.6">
+          Simula la emisión sin enviar información a la DIAN.
+          Sirve para validar el flujo antes de conectar Factus.
+        </p>
+
+        <div class="form-grid">
+          <label class="field">
+            Cliente
+            <input id="test-customer" value="Consumidor final" />
+          </label>
+
+          <label class="field">
+            Total
+            <input id="test-total" type="number" value="185000" />
+          </label>
+
+          <button class="btn" id="emit-test">
+            Emitir factura de prueba
+          </button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Flujo de emisión</h2>
+
+        <div class="list">
+          <div class="row">
+            <div>
+              <strong>1. Venta confirmada</strong>
+              <small>Se registra pago e inventario</small>
+            </div>
+            <span class="pill green">Listo</span>
+          </div>
+
+          <div class="row">
+            <div>
+              <strong>2. Crear factura</strong>
+              <small>Adaptador sandbox local</small>
+            </div>
+            <span class="pill green">Listo</span>
+          </div>
+
+          <div class="row">
+            <div>
+              <strong>3. Validación DIAN</strong>
+              <small>Se conectará con Factus después</small>
+            </div>
+            <span class="pill">Pendiente</span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <section class="card" style="margin-top:18px">
+      <div class="card-head">
+        <h2>Facturas de prueba</h2>
+        <span class="link" id="clear-tests">Limpiar historial</span>
+      </div>
+
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Consecutivo</th>
+            <th>Cliente</th>
+            <th>Total</th>
+            <th>Estado</th>
+            <th>CUFE simulado</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </section>
+  `;
+}
+
+
+/* ============================================================
+   SALE MODAL
+============================================================ */
+
+let saleDraft = [];
+
+function openSaleModal() {
+  const realProducts = state.products.filter(p => p.id != null);
+
+  if (!realProducts.length) {
+    toast('La API no tiene productos disponibles.');
+    return;
+  }
+
+  saleDraft = [];
+
+  document.body.insertAdjacentHTML(
+    'beforeend',
+    `
+      <div class="modal-overlay" id="sale-modal">
+        <div class="modal">
+          <div class="card-head">
+            <div>
+              <p class="eyebrow">VENTA</p>
+              <h2>Nueva venta</h2>
+            </div>
+
+            <button class="icon-btn" id="close-sale-modal">×</button>
+          </div>
+
+          <div class="form-grid">
+
+            <label class="field full">
+              Cliente
+              <input
+                id="sale-customer"
+                value="Consumidor final"
+                maxlength="160"
+              />
+            </label>
+
+            <label class="field">
+              Producto
+              <select id="sale-product">
+                ${realProducts.map(p => `
+                  <option value="${p.id}">
+                    ${p.name} · ${money(p.price)} · stock ${p.stock}
+                  </option>
+                `).join('')}
+              </select>
+            </label>
+
+            <label class="field">
+              Cantidad
+              <input
+                id="sale-quantity"
+                type="number"
+                min="1"
+                step="1"
+                value="1"
+              />
+            </label>
+
+            <div class="field full">
+              <button class="btn secondary" id="add-sale-item">
+                + Agregar producto
+              </button>
+            </div>
+
+            <label class="field full">
+              Método de pago
+              <select id="sale-payment">
+                <option value="efectivo">Efectivo</option>
+                <option value="tarjeta">Tarjeta</option>
+                <option value="transferencia">Transferencia</option>
+                <option value="qr">QR</option>
+              </select>
+            </label>
+
+          </div>
+
+          <div id="sale-cart"></div>
+
+          <div class="modal-actions">
+            <button class="btn secondary" id="cancel-sale">
+              Cancelar
+            </button>
+
+            <button class="btn" id="confirm-sale">
+              Confirmar venta
+            </button>
+          </div>
+        </div>
+      </div>
+    `
+  );
+
+  document.querySelector('#close-sale-modal').onclick = closeSaleModal;
+  document.querySelector('#cancel-sale').onclick = closeSaleModal;
+  document.querySelector('#add-sale-item').onclick = addSaleItem;
+  document.querySelector('#confirm-sale').onclick = submitSale;
+
+  document.querySelector('#sale-modal').addEventListener('click', event => {
+    if (event.target.id === 'sale-modal') {
+      closeSaleModal();
+    }
+  });
+
+  refreshSaleCart();
+}
+
+
+function closeSaleModal() {
+  document.querySelector('#sale-modal')?.remove();
+  saleDraft = [];
+}
+
+
+function addSaleItem() {
+  const productId = Number(
+    document.querySelector('#sale-product').value
+  );
+
+  const quantity = Number(
+    document.querySelector('#sale-quantity').value
+  );
+
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    toast('Ingresa una cantidad válida.');
+    return;
+  }
+
+  const product = state.products.find(
+    p => Number(p.id) === productId
+  );
+
+  if (!product) {
+    toast('Producto no encontrado.');
+    return;
+  }
+
+  const existing = saleDraft.find(
+    item => item.product_id === productId
+  );
+
+  const currentQuantity = existing
+    ? existing.quantity
+    : 0;
+
+  if (currentQuantity + quantity > Number(product.stock)) {
+    toast(`Stock insuficiente para ${product.name}.`);
+    return;
+  }
+
+  if (existing) {
+    existing.quantity += quantity;
+  } else {
+    saleDraft.push({
+      product_id: productId,
+      quantity,
+      name: product.name,
+      unit_price: Number(product.price),
+      stock: Number(product.stock)
+    });
+  }
+
+  document.querySelector('#sale-quantity').value = 1;
+
+  refreshSaleCart();
+}
+
+
+function removeSaleItem(productId) {
+  saleDraft = saleDraft.filter(
+    item => item.product_id !== productId
+  );
+
+  refreshSaleCart();
+}
+
+
+function refreshSaleCart() {
+  const container = document.querySelector('#sale-cart');
+
+  if (!container) return;
+
+  if (!saleDraft.length) {
+    container.innerHTML = `
+      <div class="empty sale-empty">
+        Agrega al menos un producto.
+      </div>
+    `;
+    return;
+  }
+
+  const total = saleDraft.reduce(
+    (acc, item) =>
+      acc + item.quantity * item.unit_price,
+    0
+  );
+
+  container.innerHTML = `
+    <div class="sale-cart">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Producto</th>
+            <th>Cant.</th>
+            <th>Precio</th>
+            <th>Subtotal</th>
+            <th></th>
+          </tr>
+        </thead>
+
+        <tbody>
+          ${saleDraft.map(item => `
+            <tr>
+              <td>${item.name}</td>
+              <td>${item.quantity}</td>
+              <td>${money(item.unit_price)}</td>
+              <td>
+                <strong>
+                  ${money(item.quantity * item.unit_price)}
+                </strong>
+              </td>
+              <td>
+                <button
+                  class="remove-item"
+                  data-product-id="${item.product_id}"
+                >
+                  ×
+                </button>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+
+      <div class="sale-total">
+        <span>Total</span>
+        <strong>${money(total)}</strong>
+      </div>
+    </div>
+  `;
+
+  container
+    .querySelectorAll('.remove-item')
+    .forEach(button => {
+      button.onclick = () =>
+        removeSaleItem(
+          Number(button.dataset.productId)
+        );
+    });
+}
+
+
+async function submitSale() {
+  if (!saleDraft.length) {
+    toast('Agrega productos a la venta.');
+    return;
+  }
+
+  const button = document.querySelector('#confirm-sale');
+
+  button.disabled = true;
+  button.textContent = 'Registrando...';
+
+  const payload = {
+    customer_name:
+      document.querySelector('#sale-customer').value.trim()
+      || 'Consumidor final',
+
+    payment_method:
+      document.querySelector('#sale-payment').value,
+
+    items: saleDraft.map(item => ({
+      product_id: item.product_id,
+      quantity: item.quantity
+    }))
+  };
+
+  try {
+    const response = await fetch(
+      `${API_BASE}/api/sales`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      }
+    );
+
+    if (!response.ok) {
+      let detail = 'No fue posible registrar la venta.';
+
+      try {
+        const error = await response.json();
+        detail = error.detail || detail;
+      } catch { }
+
+      throw new Error(detail);
+    }
+
+    const result = await response.json();
+
+    closeSaleModal();
+
+    await syncFromApi(false);
+
+    render('sales');
+
+    toast(
+      `Venta ${result.number} registrada por ${money(result.total)}`
+    );
+
+  } catch (error) {
+    toast(error.message);
+
+    button.disabled = false;
+    button.textContent = 'Confirmar venta';
+  }
+}
+
+
+/* ============================================================
+   VIEWS
+============================================================ */
+
+const views = {
+  dashboard: {
+    title: 'Resumen de hoy',
+    render: dashboard
+  },
+  sales: {
+    title: 'Ventas y caja',
+    render: sales
+  },
+  inventory: {
+    title: 'Inventario',
+    render: inventory
+  },
+  expenses: {
+    title: 'Gastos',
+    render: expenses
+  },
+  invoices: {
+    title: 'Facturación electrónica',
+    render: invoices
+  }
+};
+
+let currentView = 'dashboard';
+
+
+function render(view = 'dashboard') {
+  currentView = view;
+
+  document.querySelector('#view-title').textContent =
+    views[view].title;
+
+  app.innerHTML = views[view].render();
+
+  document.querySelectorAll('.nav-item').forEach(button => {
+    button.classList.toggle(
+      'active',
+      button.dataset.view === view
+    );
+  });
+
+  document.querySelectorAll('[data-view]').forEach(element => {
+    element.onclick = () =>
+      render(element.dataset.view);
+  });
+
+  document
+    .querySelector('#new-sale')
+    ?.addEventListener(
+      'click',
+      openSaleModal
+    );
+
+  document
+    .querySelector('#new-product')
+    ?.addEventListener(
+      'click',
+      () =>
+        toast(
+          'Formulario de producto será el siguiente módulo.'
+        )
+    );
+
+  document
+    .querySelector('#new-expense')
+    ?.addEventListener(
+      'click',
+      () =>
+        toast(
+          'Formulario de gasto será conectado después de ventas.'
+        )
+    );
+
+  document
+    .querySelector('#emit-test')
+    ?.addEventListener(
+      'click',
+      () => {
+        const number =
+          state.testInvoices.length + 1;
+
+        const invoice = {
+          number:
+            'GATO-TEST-' +
+            String(number).padStart(4, '0'),
+
+          customer:
+            document.querySelector('#test-customer').value
+            || 'Consumidor final',
+
+          total:
+            Number(
+              document.querySelector('#test-total').value
+            ) || 0,
+
+          status:
+            'Aceptada (prueba)',
+
+          cufe:
+            'SIM-' +
+            crypto.randomUUID()
+              .replaceAll('-', '')
+              .slice(0, 18)
+              .toUpperCase()
+        };
+
+        state.testInvoices.unshift(invoice);
+
+        localStorage.setItem(
+          'gato-test-invoices',
+          JSON.stringify(state.testInvoices)
+        );
+
+        toast(
+          'Factura de prueba generada.'
+        );
+
+        render('invoices');
+      }
+    );
+
+  document
+    .querySelector('#clear-tests')
+    ?.addEventListener(
+      'click',
+      () => {
+        state.testInvoices = [];
+
+        localStorage.removeItem(
+          'gato-test-invoices'
+        );
+
+        toast(
+          'Historial de pruebas limpiado.'
+        );
+
+        render('invoices');
+      }
+    );
+}
+
+
+/* ============================================================
+   API SYNC
+============================================================ */
+
+async function syncFromApi(showToast = true) {
+  try {
+    const [
+      products,
+      sales,
+      expenses,
+      inventoryMovements
+    ] = await Promise.all([
+      fetch(
+        `${API_BASE}/api/products`
+      ).then(response =>
+        response.ok
+          ? response.json()
+          : Promise.reject()
+      ),
+
+      fetch(
+        `${API_BASE}/api/sales`
+      ).then(response =>
+        response.ok
+          ? response.json()
+          : Promise.reject()
+      ),
+
+      fetch(
+        `${API_BASE}/api/expenses`
+      ).then(response =>
+        response.ok
+          ? response.json()
+          : Promise.reject()
+      ),
+
+      fetch(
+        `${API_BASE}/api/inventory/movements`
+      ).then(response =>
+        response.ok
+          ? response.json()
+          : Promise.reject()
+      )
+    ]);
+
+    state.products = products;
+    state.inventoryMovements = inventoryMovements;
+
+    state.sales = sales.map(sale => ({
+      id: sale.number,
+      detail:
+        `${sale.customer_name} · venta registrada`,
+      total: Number(sale.total),
+      payment: sale.payment_method,
+      status: sale.status
+    }));
+
+    state.expenses = expenses.map(expense => ({
+      concept: expense.concept,
+      provider:
+        expense.provider ||
+        'Sin proveedor',
+      value: Number(expense.value),
+      date:
+        new Date(
+          expense.created_at
+        ).toLocaleDateString('es-CO')
+    }));
+
+    render(currentView);
+
+    if (showToast) {
+      toast(
+        'Datos sincronizados con la API'
+      );
+    }
+
+    return true;
+
+  } catch (error) {
+    console.info(
+      'API no disponible; usando datos de demostración'
+    );
+
+    return false;
+  }
+}
+
+
+/* ============================================================
+   START
+============================================================ */
+
+document
+  .querySelectorAll('.nav-item')
+  .forEach(button => {
+    button.onclick = () =>
+      render(button.dataset.view);
+  });
+
+render();
+
+syncFromApi();
+
+
+
+

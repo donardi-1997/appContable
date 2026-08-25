@@ -1071,7 +1071,6 @@ function openInventoryAdjustmentModal() {
               />
             </label>
 
-
             <label class="field full">
               Notas
               <input
@@ -1262,16 +1261,6 @@ function openExpenseModal() {
             </label>
 
             <label class="field full">
-              Método de pago
-
-              <select id="expense-payment-method">
-                <option value="efectivo">Efectivo</option>
-                <option value="transferencia">Transferencia</option>
-                <option value="tarjeta">Tarjeta</option>
-              </select>
-            </label>
-
-            <label class="field full">
               Notas
               <input
                 id="expense-notes"
@@ -1335,9 +1324,6 @@ async function submitExpense() {
     document.querySelector('#expense-value').value
   );
 
-  const paymentMethod =
-    document.querySelector('#expense-payment-method').value;
-
   const notes =
     document.querySelector('#expense-notes').value.trim();
 
@@ -1361,7 +1347,6 @@ async function submitExpense() {
     concept,
     provider: provider || null,
     value,
-    payment_method: paymentMethod,
     notes: notes || null
   };
 
@@ -2075,9 +2060,6 @@ document
 render();
 
 syncFromApi();
-
-
-
 
 
 
