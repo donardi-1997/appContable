@@ -7,7 +7,6 @@ class ProductCreate(BaseModel):
     sku: str | None = None
     unit: str = "unidad"
     price: Decimal = Field(default=0, ge=0)
-    cost_price: Decimal = Field(default=0, ge=0)
     stock: Decimal = Field(default=0, ge=0)
     minimum_stock: Decimal = Field(default=0, ge=0)
 
@@ -28,10 +27,6 @@ class ProductUpdate(BaseModel):
         max_length=30,
     )
     price: Decimal | None = Field(
-        default=None,
-        ge=0,
-    )
-    cost_price: Decimal | None = Field(
         default=None,
         ge=0,
     )
@@ -125,10 +120,6 @@ class CashRegisterOpenCreate(BaseModel):
 
 class CashRegisterCloseCreate(BaseModel):
     closing_amount: Decimal = Field(ge=0)
-    notes: str | None = Field(
-        default=None,
-        max_length=500,
-    )
 
 
 

@@ -1059,23 +1059,6 @@ def list_products(db: Session = Depends(get_db)):
             "sku": product.sku,
             "unit": product.unit,
             "price": product.price,
-            "cost_price": product.cost_price,
-            "margin": (
-                product.price
-                - product.cost_price
-            ),
-            "margin_percent": (
-                (
-                    (
-                        product.price
-                        - product.cost_price
-                    )
-                    / product.price
-                    * Decimal("100")
-                )
-                if product.price
-                else Decimal("0")
-            ),
             "stock": product.stock,
             "minimum_stock": product.minimum_stock,
             "active": product.active,
@@ -1161,11 +1144,6 @@ def update_product(
             "sku": product.sku,
             "unit": product.unit,
             "price": product.price,
-            "cost_price": product.cost_price,
-            "margin": (
-                product.price
-                - product.cost_price
-            ),
             "stock": product.stock,
             "minimum_stock": product.minimum_stock,
             "active": product.active,
@@ -2381,6 +2359,7 @@ def create_inventory_adjustment(
     actor: User = Depends(
         require_roles(
             "ADMIN",
+            "VENDEDOR",
         )
     ),
 ):
@@ -2561,38 +2540,13 @@ def get_current_cash_register(
             "session": None,
         }
 
-    completed_sales = db.scalars(
+    cash_sales = db.scalars(
         select(Sale).where(
             Sale.status == "completada",
+            Sale.payment_method == "efectivo",
             Sale.created_at >= session.opened_at,
         )
     ).all()
-
-    cash_sales = [
-        sale
-        for sale in completed_sales
-        if str(sale.payment_method).lower() == "efectivo"
-    ]
-
-    payment_totals = {}
-
-    for sale in completed_sales:
-        method = str(
-            sale.payment_method or "otro"
-        ).lower()
-
-        payment_totals[method] = (
-            payment_totals.get(
-                method,
-                Decimal("0")
-            )
-            + sale.total
-        )
-
-    sales_total = sum(
-        (sale.total for sale in completed_sales),
-        Decimal("0")
-    )
 
     expenses = db.scalars(
         select(Expense).where(
@@ -2624,8 +2578,6 @@ def get_current_cash_register(
             "opening_amount": session.opening_amount,
             "opened_at": session.opened_at,
             "cash_sales_total": cash_sales_total,
-            "sales_total": sales_total,
-            "payment_totals": payment_totals,
             "expenses_total": expenses_total,
             "expected_amount": expected_amount,
         },
@@ -2665,38 +2617,13 @@ def close_cash_register(
             detail="No hay una caja abierta."
         )
 
-    completed_sales = db.scalars(
+    cash_sales = db.scalars(
         select(Sale).where(
             Sale.status == "completada",
+            Sale.payment_method == "efectivo",
             Sale.created_at >= session.opened_at,
         )
     ).all()
-
-    cash_sales = [
-        sale
-        for sale in completed_sales
-        if str(sale.payment_method).lower() == "efectivo"
-    ]
-
-    payment_totals = {}
-
-    for sale in completed_sales:
-        method = str(
-            sale.payment_method or "otro"
-        ).lower()
-
-        payment_totals[method] = (
-            payment_totals.get(
-                method,
-                Decimal("0")
-            )
-            + sale.total
-        )
-
-    sales_total = sum(
-        (sale.total for sale in completed_sales),
-        Decimal("0")
-    )
 
     expenses = db.scalars(
         select(Expense).where(
@@ -2729,11 +2656,6 @@ def close_cash_register(
     session.expected_amount = expected_amount
     session.closing_amount = payload.closing_amount
     session.difference = difference
-    session.closing_notes = (
-        payload.notes.strip()
-        if payload.notes
-        else None
-    )
     session.status = "CLOSED"
     session.closed_at = datetime.utcnow()
 
@@ -2762,13 +2684,10 @@ def close_cash_register(
         "id": session.id,
         "opening_amount": session.opening_amount,
         "cash_sales_total": cash_sales_total,
-        "sales_total": sales_total,
-        "payment_totals": payment_totals,
         "expenses_total": expenses_total,
         "expected_amount": session.expected_amount,
         "closing_amount": session.closing_amount,
         "difference": session.difference,
-        "closing_notes": session.closing_notes,
         "status": session.status,
         "opened_at": session.opened_at,
         "closed_at": session.closed_at,

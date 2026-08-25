@@ -9841,22 +9841,6 @@ async function loadCashRegisterPanel() {
           <small>Efectivo esperado</small>
           <h2>${money(Number(session.expected_amount || 0))}</h2>
         </div>
-
-        <div class="card">
-          <small>Total vendido</small>
-          <h2>${money(Number(session.sales_total || 0))}</h2>
-        </div>
-      </div>
-
-      <div class="cash-payment-breakdown">
-        ${Object.entries(
-          session.payment_totals || {}
-        ).map(([method,total]) => `
-          <div>
-            <span>${method}</span>
-            <strong>${money(Number(total || 0))}</strong>
-          </div>
-        `).join('')}
       </div>
     `;
   }
@@ -10057,17 +10041,6 @@ async function openCashRegisterCloseModal() {
                 />
               </label>
 
-              <label class="field full">
-                Observaciones del cierre
-
-                <textarea
-                  id="cash-closing-notes"
-                  rows="3"
-                  maxlength="500"
-                  placeholder="Ej. diferencia revisada, efectivo entregado, novedad de turno..."
-                ></textarea>
-              </label>
-
             </div>
 
             <div class="modal-actions">
@@ -10128,12 +10101,7 @@ async function submitCashRegisterClose() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          closing_amount: amount,
-          notes:
-            document
-              .querySelector('#cash-closing-notes')
-              ?.value
-              ?.trim() || null
+          closing_amount: amount
         })
       }
     );
