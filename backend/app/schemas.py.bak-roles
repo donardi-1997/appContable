@@ -152,7 +152,7 @@ class UserCreate(BaseModel):
         max_length=200,
     )
 
-    role: str = "VENDEDOR"
+    role: str = "OPERATION"
 
 
 class UserActiveUpdate(BaseModel):

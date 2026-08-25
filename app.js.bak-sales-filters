@@ -160,8 +160,11 @@ function getRoleLabel(role) {
     ADMIN:
       'Administrador',
 
-    VENDEDOR:
-      'Vendedor'
+    CASHIER:
+      'Caja',
+
+    OPERATION:
+      'Operación'
   };
 
   return (
@@ -208,7 +211,8 @@ let systemAuditLoaded = false;
 function auditRoleLabel(role) {
   const labels = {
     ADMIN: 'Administrador',
-    VENDEDOR: 'Vendedor'
+    CASHIER: 'Caja',
+    OPERATION: 'Operación'
   };
 
   return labels[role] || role || 'Sistema';
@@ -1256,10 +1260,16 @@ function allowedViewsForRole(
         'invoices',
         'users', 'audit'];
 
-    case 'VENDEDOR':
+    case 'CASHIER':
       return [
         'dashboard',
         'sales',
+        'inventory'
+      ];
+
+    case 'OPERATION':
+      return [
+        'dashboard',
         'inventory'
       ];
 
@@ -1332,7 +1342,8 @@ function applyRoleActionPermissions() {
     role === 'ADMIN';
 
   const canAdjustInventory =
-    role === 'ADMIN';
+    role === 'ADMIN' ||
+    role === 'OPERATION';
 
 
   // ----------------------------------------
@@ -3626,7 +3637,6 @@ function saleDateTime(value) {
 
 function sales() {
   setTimeout(loadCashRegisterPanel, 0);
-  setTimeout(setupSalesFilters, 0);
 
   return `
     <section class="card" style="margin-bottom:20px">
@@ -3863,125 +3873,7 @@ function sales() {
       </select>
     </div>
 
-    
-    <section
-      class="card sales-filter-card"
-      id="sales-history-filters"
-      style="margin-bottom:14px"
-    >
-
-      <div class="sales-filter-head">
-
-        <div>
-          <p class="eyebrow">
-            HISTORIAL
-          </p>
-
-          <h2>
-            Filtrar ventas
-          </h2>
-        </div>
-
-        <button
-          type="button"
-          class="btn secondary"
-          id="clear-sales-filters"
-        >
-          Limpiar filtros
-        </button>
-
-      </div>
-
-
-      <div class="sales-filter-grid">
-
-        <label class="field">
-          Desde
-          <input
-            type="date"
-            id="sales-date-from"
-          >
-        </label>
-
-
-        <label class="field">
-          Hasta
-          <input
-            type="date"
-            id="sales-date-to"
-          >
-        </label>
-
-
-        <label class="field">
-          Método de pago
-
-          <select
-            id="sales-payment-filter"
-          >
-            <option value="">
-              Todos
-            </option>
-
-            <option value="efectivo">
-              Efectivo
-            </option>
-
-            <option value="transferencia">
-              Transferencia
-            </option>
-
-            <option value="tarjeta">
-              Tarjeta
-            </option>
-
-            <option value="nequi">
-              Nequi
-            </option>
-
-            <option value="daviplata">
-              Daviplata
-            </option>
-          </select>
-
-        </label>
-
-
-        <label class="field">
-          Estado
-
-          <select
-            id="sales-status-filter"
-          >
-            <option value="">
-              Todos
-            </option>
-
-            <option value="completada">
-              Completadas
-            </option>
-
-            <option value="anulada">
-              Anuladas
-            </option>
-          </select>
-
-        </label>
-
-      </div>
-
-
-      <div class="sales-filter-result">
-        <span
-          id="sales-filter-result-count"
-        >
-          0 ventas
-        </span>
-      </div>
-
-    </section>
-
-<section class="card">
+    <section class="card">
       <table class="table">
         <thead>
           <tr>
@@ -3997,12 +3889,7 @@ function sales() {
 
         <tbody>
           ${state.sales.map(s => `
-            <tr
-              class="sale-history-row"
-              data-sale-payment="${String(s.payment || '').toLowerCase()}"
-              data-sale-status="${String(s.status || '').toLowerCase()}"
-              data-sale-date="${s.created_at || ''}"
-            >
+            <tr>
               <td>
                 <strong>
                   ${s.id}
@@ -4058,345 +3945,6 @@ function sales() {
       </table>
     </section>
   `;
-}
-
-
-
-/* ============================================================
-   SALES FILTERS
-============================================================ */
-
-function normalizeSalesFilterText(
-  value
-) {
-
-  return String(
-    value || ''
-  )
-    .normalize('NFD')
-    .replace(
-      /[\u0300-\u036f]/g,
-      ''
-    )
-    .toLowerCase()
-    .trim();
-}
-
-
-function saleLocalDateValue(
-  value
-) {
-
-  if (!value) {
-    return '';
-  }
-
-
-  let normalized =
-    String(value);
-
-
-  if (
-    !normalized.endsWith('Z')
-    && !/[+-]\d{2}:\d{2}$/.test(
-      normalized
-    )
-  ) {
-
-    normalized += 'Z';
-  }
-
-
-  const date =
-    new Date(
-      normalized
-    );
-
-
-  if (
-    Number.isNaN(
-      date.getTime()
-    )
-  ) {
-
-    return '';
-  }
-
-
-  const parts =
-    new Intl.DateTimeFormat(
-      'en-CA',
-      {
-        timeZone:
-          'America/Bogota',
-
-        year:
-          'numeric',
-
-        month:
-          '2-digit',
-
-        day:
-          '2-digit'
-      }
-    )
-      .formatToParts(
-        date
-      );
-
-
-  const get =
-    type =>
-      parts.find(
-        part =>
-          part.type === type
-      )?.value || '';
-
-
-  return (
-    `${get('year')}-`
-    + `${get('month')}-`
-    + `${get('day')}`
-  );
-}
-
-
-function applySalesFilters() {
-
-  const from =
-    document.querySelector(
-      '#sales-date-from'
-    )?.value || '';
-
-
-  const to =
-    document.querySelector(
-      '#sales-date-to'
-    )?.value || '';
-
-
-  const payment =
-    normalizeSalesFilterText(
-      document.querySelector(
-        '#sales-payment-filter'
-      )?.value
-    );
-
-
-  const status =
-    normalizeSalesFilterText(
-      document.querySelector(
-        '#sales-status-filter'
-      )?.value
-    );
-
-
-  const rows =
-    [
-      ...document.querySelectorAll(
-        '.sale-history-row'
-      )
-    ];
-
-
-  let visible = 0;
-
-
-  rows.forEach(
-    row => {
-
-      const rowPayment =
-        normalizeSalesFilterText(
-          row.dataset.salePayment
-        );
-
-
-      const rowStatus =
-        normalizeSalesFilterText(
-          row.dataset.saleStatus
-        );
-
-
-      const date =
-        saleLocalDateValue(
-          row.dataset.saleDate
-        );
-
-
-      const matchesPayment =
-        !payment
-        || rowPayment === payment;
-
-
-      const matchesStatus =
-        !status
-        || rowStatus === status;
-
-
-      const matchesFrom =
-        !from
-        || (
-          date
-          && date >= from
-        );
-
-
-      const matchesTo =
-        !to
-        || (
-          date
-          && date <= to
-        );
-
-
-      const show =
-        matchesPayment
-        && matchesStatus
-        && matchesFrom
-        && matchesTo;
-
-
-      row.style.display =
-        show
-          ? ''
-          : 'none';
-
-
-      if (show) {
-        visible++;
-      }
-
-    }
-  );
-
-
-  const count =
-    document.querySelector(
-      '#sales-filter-result-count'
-    );
-
-
-  if (count) {
-
-    count.textContent =
-      `${visible} ${
-        visible === 1
-          ? 'venta'
-          : 'ventas'
-      }`;
-  }
-
-
-  if (
-    typeof refreshCurrentViewPagination
-    === 'function'
-  ) {
-
-    refreshCurrentViewPagination();
-  }
-}
-
-
-function setupSalesFilters() {
-
-  const container =
-    document.querySelector(
-      '#sales-history-filters'
-    );
-
-
-  if (!container) {
-    return;
-  }
-
-
-  [
-    '#sales-date-from',
-    '#sales-date-to',
-    '#sales-payment-filter',
-    '#sales-status-filter'
-  ]
-    .forEach(
-      selector => {
-
-        const element =
-          document.querySelector(
-            selector
-          );
-
-
-        if (!element) {
-          return;
-        }
-
-
-        element.addEventListener(
-          'change',
-          applySalesFilters
-        );
-
-
-        if (
-          element.type === 'date'
-        ) {
-
-          element.addEventListener(
-            'click',
-            () => {
-
-              if (
-                typeof element.showPicker
-                === 'function'
-              ) {
-
-                try {
-                  element.showPicker();
-                }
-                catch {}
-              }
-            }
-          );
-        }
-      }
-    );
-
-
-  document
-    .querySelector(
-      '#clear-sales-filters'
-    )
-    ?.addEventListener(
-      'click',
-      () => {
-
-        [
-          '#sales-date-from',
-          '#sales-date-to',
-          '#sales-payment-filter',
-          '#sales-status-filter'
-        ]
-          .forEach(
-            selector => {
-
-              const input =
-                document.querySelector(
-                  selector
-                );
-
-
-              if (input) {
-                input.value = '';
-              }
-            }
-          );
-
-
-        applySalesFilters();
-      }
-    );
-
-
-  applySalesFilters();
 }
 
 
@@ -11462,7 +11010,8 @@ syncFromApi();
 function userRoleLabel(role) {
   const labels = {
     ADMIN: 'Administrador',
-    VENDEDOR: 'Vendedor'
+    CASHIER: 'Caja',
+    OPERATION: 'Operación'
   };
 
   return labels[role] || role;
@@ -11527,8 +11076,8 @@ function usersView() {
   const manageableUsers =
     state.users.filter(
       user =>
-        user.role === 'ADMIN' ||
-        user.role === 'VENDEDOR'
+        user.role === 'CASHIER' ||
+        user.role === 'OPERATION'
     );
 
   const activeUsers =
@@ -11680,12 +11229,12 @@ function usersView() {
               id="user-role"
               required
             >
-              <option value="VENDEDOR">
-                Vendedor
+              <option value="CASHIER">
+                Caja
               </option>
 
-              <option value="ADMIN">
-                Administrador
+              <option value="OPERATION">
+                Operación
               </option>
             </select>
           </label>
@@ -11766,12 +11315,12 @@ function usersView() {
               Todos los roles
             </option>
 
-            <option value="VENDEDOR">
-              Vendedor
+            <option value="CASHIER">
+              Caja
             </option>
 
-            <option value="ADMIN">
-              Administrador
+            <option value="OPERATION">
+              Operación
             </option>
           </select>
 
@@ -12036,8 +11585,8 @@ async function createOperationalUser(
 
 
   if (
-    payload.role !== 'VENDEDOR' &&
-    payload.role !== 'ADMIN'
+    payload.role !== 'CASHIER' &&
+    payload.role !== 'OPERATION'
   ) {
     toast(
       'Rol no permitido.'

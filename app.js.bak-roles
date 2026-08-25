@@ -160,8 +160,11 @@ function getRoleLabel(role) {
     ADMIN:
       'Administrador',
 
-    VENDEDOR:
-      'Vendedor'
+    CASHIER:
+      'Caja',
+
+    OPERATION:
+      'Operación'
   };
 
   return (
@@ -208,7 +211,8 @@ let systemAuditLoaded = false;
 function auditRoleLabel(role) {
   const labels = {
     ADMIN: 'Administrador',
-    VENDEDOR: 'Vendedor'
+    CASHIER: 'Caja',
+    OPERATION: 'Operación'
   };
 
   return labels[role] || role || 'Sistema';
@@ -1256,10 +1260,16 @@ function allowedViewsForRole(
         'invoices',
         'users', 'audit'];
 
-    case 'VENDEDOR':
+    case 'CASHIER':
       return [
         'dashboard',
         'sales',
+        'inventory'
+      ];
+
+    case 'OPERATION':
+      return [
+        'dashboard',
         'inventory'
       ];
 
@@ -1332,7 +1342,8 @@ function applyRoleActionPermissions() {
     role === 'ADMIN';
 
   const canAdjustInventory =
-    role === 'ADMIN';
+    role === 'ADMIN' ||
+    role === 'OPERATION';
 
 
   // ----------------------------------------
@@ -11462,7 +11473,8 @@ syncFromApi();
 function userRoleLabel(role) {
   const labels = {
     ADMIN: 'Administrador',
-    VENDEDOR: 'Vendedor'
+    CASHIER: 'Caja',
+    OPERATION: 'Operación'
   };
 
   return labels[role] || role;
@@ -11527,8 +11539,8 @@ function usersView() {
   const manageableUsers =
     state.users.filter(
       user =>
-        user.role === 'ADMIN' ||
-        user.role === 'VENDEDOR'
+        user.role === 'CASHIER' ||
+        user.role === 'OPERATION'
     );
 
   const activeUsers =
@@ -11680,12 +11692,12 @@ function usersView() {
               id="user-role"
               required
             >
-              <option value="VENDEDOR">
-                Vendedor
+              <option value="CASHIER">
+                Caja
               </option>
 
-              <option value="ADMIN">
-                Administrador
+              <option value="OPERATION">
+                Operación
               </option>
             </select>
           </label>
@@ -11766,12 +11778,12 @@ function usersView() {
               Todos los roles
             </option>
 
-            <option value="VENDEDOR">
-              Vendedor
+            <option value="CASHIER">
+              Caja
             </option>
 
-            <option value="ADMIN">
-              Administrador
+            <option value="OPERATION">
+              Operación
             </option>
           </select>
 
@@ -12036,8 +12048,8 @@ async function createOperationalUser(
 
 
   if (
-    payload.role !== 'VENDEDOR' &&
-    payload.role !== 'ADMIN'
+    payload.role !== 'CASHIER' &&
+    payload.role !== 'OPERATION'
   ) {
     toast(
       'Rol no permitido.'

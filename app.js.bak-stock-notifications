@@ -160,8 +160,11 @@ function getRoleLabel(role) {
     ADMIN:
       'Administrador',
 
-    VENDEDOR:
-      'Vendedor'
+    CASHIER:
+      'Caja',
+
+    OPERATION:
+      'Operación'
   };
 
   return (
@@ -208,7 +211,8 @@ let systemAuditLoaded = false;
 function auditRoleLabel(role) {
   const labels = {
     ADMIN: 'Administrador',
-    VENDEDOR: 'Vendedor'
+    CASHIER: 'Caja',
+    OPERATION: 'Operación'
   };
 
   return labels[role] || role || 'Sistema';
@@ -1256,10 +1260,16 @@ function allowedViewsForRole(
         'invoices',
         'users', 'audit'];
 
-    case 'VENDEDOR':
+    case 'CASHIER':
       return [
         'dashboard',
         'sales',
+        'inventory'
+      ];
+
+    case 'OPERATION':
+      return [
+        'dashboard',
         'inventory'
       ];
 
@@ -1332,7 +1342,8 @@ function applyRoleActionPermissions() {
     role === 'ADMIN';
 
   const canAdjustInventory =
-    role === 'ADMIN';
+    role === 'ADMIN' ||
+    role === 'OPERATION';
 
 
   // ----------------------------------------
@@ -3626,7 +3637,6 @@ function saleDateTime(value) {
 
 function sales() {
   setTimeout(loadCashRegisterPanel, 0);
-  setTimeout(setupSalesFilters, 0);
 
   return `
     <section class="card" style="margin-bottom:20px">
@@ -3665,32 +3675,34 @@ function sales() {
         </div>
 
         <span class="pill">
-          ${(state.openAccounts || [])
-      .filter(
-        account =>
-          account.status === 'OPEN'
-      )
-      .length
-    } abiertas
+          ${
+            (state.openAccounts || [])
+              .filter(
+                account =>
+                  account.status === 'OPEN'
+              )
+              .length
+          } abiertas
         </span>
       </div>
 
       <div class="open-accounts-grid">
 
-        ${(state.openAccounts || [])
-      .filter(
-        account =>
-          account.status === 'OPEN'
-      )
-      .length
+        ${
+          (state.openAccounts || [])
+            .filter(
+              account =>
+                account.status === 'OPEN'
+            )
+            .length
 
-      ? (state.openAccounts || [])
-        .filter(
-          account =>
-            account.status === 'OPEN'
-        )
-        .map(
-          account => `
+          ? (state.openAccounts || [])
+              .filter(
+                account =>
+                  account.status === 'OPEN'
+              )
+              .map(
+                account => `
                   <article class="open-account-card">
 
                     <div class="open-account-head">
@@ -3703,14 +3715,15 @@ function sales() {
                           ${account.label}
                         </strong>
 
-                        ${account.zone
-              ? `
+                        ${
+                          account.zone
+                            ? `
                               <span>
                                 ${account.zone}
                               </span>
                             `
-              : ''
-            }
+                            : ''
+                        }
                       </div>
 
                       <span class="pill green">
@@ -3766,12 +3779,13 @@ function sales() {
 
                     <div class="open-account-items-preview">
 
-                      ${account.items?.length
+                      ${
+                        account.items?.length
 
-              ? account.items
-                .slice(-4)
-                .map(
-                  item => `
+                        ? account.items
+                            .slice(-4)
+                            .map(
+                              item => `
                                 <div>
                                   <span>
                                     ${item.product_name}
@@ -3782,15 +3796,15 @@ function sales() {
                                   </strong>
                                 </div>
                               `
-                )
-                .join('')
+                            )
+                            .join('')
 
-              : `
+                        : `
                             <div class="open-account-empty">
                               Sin consumos todavía.
                             </div>
                           `
-            }
+                      }
 
                     </div>
 
@@ -3817,10 +3831,10 @@ function sales() {
 
                   </article>
                 `
-        )
-        .join('')
+              )
+              .join('')
 
-      : `
+          : `
               <div class="open-accounts-empty">
                 <strong>
                   No hay cuentas abiertas
@@ -3831,7 +3845,7 @@ function sales() {
                 </span>
               </div>
             `
-    }
+        }
 
       </div>
     </section>
@@ -3863,125 +3877,7 @@ function sales() {
       </select>
     </div>
 
-    
-    <section
-      class="card sales-filter-card"
-      id="sales-history-filters"
-      style="margin-bottom:14px"
-    >
-
-      <div class="sales-filter-head">
-
-        <div>
-          <p class="eyebrow">
-            HISTORIAL
-          </p>
-
-          <h2>
-            Filtrar ventas
-          </h2>
-        </div>
-
-        <button
-          type="button"
-          class="btn secondary"
-          id="clear-sales-filters"
-        >
-          Limpiar filtros
-        </button>
-
-      </div>
-
-
-      <div class="sales-filter-grid">
-
-        <label class="field">
-          Desde
-          <input
-            type="date"
-            id="sales-date-from"
-          >
-        </label>
-
-
-        <label class="field">
-          Hasta
-          <input
-            type="date"
-            id="sales-date-to"
-          >
-        </label>
-
-
-        <label class="field">
-          Método de pago
-
-          <select
-            id="sales-payment-filter"
-          >
-            <option value="">
-              Todos
-            </option>
-
-            <option value="efectivo">
-              Efectivo
-            </option>
-
-            <option value="transferencia">
-              Transferencia
-            </option>
-
-            <option value="tarjeta">
-              Tarjeta
-            </option>
-
-            <option value="nequi">
-              Nequi
-            </option>
-
-            <option value="daviplata">
-              Daviplata
-            </option>
-          </select>
-
-        </label>
-
-
-        <label class="field">
-          Estado
-
-          <select
-            id="sales-status-filter"
-          >
-            <option value="">
-              Todos
-            </option>
-
-            <option value="completada">
-              Completadas
-            </option>
-
-            <option value="anulada">
-              Anuladas
-            </option>
-          </select>
-
-        </label>
-
-      </div>
-
-
-      <div class="sales-filter-result">
-        <span
-          id="sales-filter-result-count"
-        >
-          0 ventas
-        </span>
-      </div>
-
-    </section>
-
-<section class="card">
+    <section class="card">
       <table class="table">
         <thead>
           <tr>
@@ -3991,18 +3887,14 @@ function sales() {
             <th>Método</th>
             <th>Total</th>
             <th>Estado</th>
-            <th>Acciones</th>
+            <th>Estado QR</th>
+            <th>QR / Acciones</th>
           </tr>
         </thead>
 
         <tbody>
           ${state.sales.map(s => `
-            <tr
-              class="sale-history-row"
-              data-sale-payment="${String(s.payment || '').toLowerCase()}"
-              data-sale-status="${String(s.status || '').toLowerCase()}"
-              data-sale-date="${s.created_at || ''}"
-            >
+            <tr>
               <td>
                 <strong>
                   ${s.id}
@@ -4017,14 +3909,14 @@ function sales() {
                 <div class="sale-date-cell">
                   <strong>
                     ${saleDateTime(
-      s.created_at
-    ).date}
+                      s.created_at
+                    ).date}
                   </strong>
 
                   <small>
                     ${saleDateTime(
-      s.created_at
-    ).time}
+                      s.created_at
+                    ).time}
                   </small>
                 </div>
               </td>
@@ -4034,23 +3926,12 @@ function sales() {
               </td>
               <td><strong>${money(s.total)}</strong></td>
               <td>
-                <span class="pill ${
-                  String(s.status).toUpperCase() === 'ANULADA'
-                    ? 'red'
-                    : 'green'
-                }">
+                <span class="pill ${String(s.status).toLowerCase().includes('fact')
+      ? 'green'
+      : 'yellow'
+    }">
                   ${s.status}
                 </span>
-              </td>
-
-              <td>
-                <button
-                  type="button"
-                  class="btn secondary sale-detail-btn"
-                  data-sale-id="${s.db_id}"
-                >
-                  Ver detalle
-                </button>
               </td>
             </tr>
           `).join('')}
@@ -4060,1585 +3941,9 @@ function sales() {
   `;
 }
 
-
-
-/* ============================================================
-   SALES FILTERS
-============================================================ */
-
-function normalizeSalesFilterText(
-  value
-) {
-
-  return String(
-    value || ''
-  )
-    .normalize('NFD')
-    .replace(
-      /[\u0300-\u036f]/g,
-      ''
-    )
-    .toLowerCase()
-    .trim();
-}
-
-
-function saleLocalDateValue(
-  value
-) {
-
-  if (!value) {
-    return '';
-  }
-
-
-  let normalized =
-    String(value);
-
-
-  if (
-    !normalized.endsWith('Z')
-    && !/[+-]\d{2}:\d{2}$/.test(
-      normalized
-    )
-  ) {
-
-    normalized += 'Z';
-  }
-
-
-  const date =
-    new Date(
-      normalized
-    );
-
-
-  if (
-    Number.isNaN(
-      date.getTime()
-    )
-  ) {
-
-    return '';
-  }
-
-
-  const parts =
-    new Intl.DateTimeFormat(
-      'en-CA',
-      {
-        timeZone:
-          'America/Bogota',
-
-        year:
-          'numeric',
-
-        month:
-          '2-digit',
-
-        day:
-          '2-digit'
-      }
-    )
-      .formatToParts(
-        date
-      );
-
-
-  const get =
-    type =>
-      parts.find(
-        part =>
-          part.type === type
-      )?.value || '';
-
-
-  return (
-    `${get('year')}-`
-    + `${get('month')}-`
-    + `${get('day')}`
-  );
-}
-
-
-function applySalesFilters() {
-
-  const from =
-    document.querySelector(
-      '#sales-date-from'
-    )?.value || '';
-
-
-  const to =
-    document.querySelector(
-      '#sales-date-to'
-    )?.value || '';
-
-
-  const payment =
-    normalizeSalesFilterText(
-      document.querySelector(
-        '#sales-payment-filter'
-      )?.value
-    );
-
-
-  const status =
-    normalizeSalesFilterText(
-      document.querySelector(
-        '#sales-status-filter'
-      )?.value
-    );
-
-
-  const rows =
-    [
-      ...document.querySelectorAll(
-        '.sale-history-row'
-      )
-    ];
-
-
-  let visible = 0;
-
-
-  rows.forEach(
-    row => {
-
-      const rowPayment =
-        normalizeSalesFilterText(
-          row.dataset.salePayment
-        );
-
-
-      const rowStatus =
-        normalizeSalesFilterText(
-          row.dataset.saleStatus
-        );
-
-
-      const date =
-        saleLocalDateValue(
-          row.dataset.saleDate
-        );
-
-
-      const matchesPayment =
-        !payment
-        || rowPayment === payment;
-
-
-      const matchesStatus =
-        !status
-        || rowStatus === status;
-
-
-      const matchesFrom =
-        !from
-        || (
-          date
-          && date >= from
-        );
-
-
-      const matchesTo =
-        !to
-        || (
-          date
-          && date <= to
-        );
-
-
-      const show =
-        matchesPayment
-        && matchesStatus
-        && matchesFrom
-        && matchesTo;
-
-
-      row.style.display =
-        show
-          ? ''
-          : 'none';
-
-
-      if (show) {
-        visible++;
-      }
-
-    }
-  );
-
-
-  const count =
-    document.querySelector(
-      '#sales-filter-result-count'
-    );
-
-
-  if (count) {
-
-    count.textContent =
-      `${visible} ${
-        visible === 1
-          ? 'venta'
-          : 'ventas'
-      }`;
-  }
-
-
-  if (
-    typeof refreshCurrentViewPagination
-    === 'function'
-  ) {
-
-    refreshCurrentViewPagination();
-  }
-}
-
-
-function setupSalesFilters() {
-
-  const container =
-    document.querySelector(
-      '#sales-history-filters'
-    );
-
-
-  if (!container) {
-    return;
-  }
-
-
-  [
-    '#sales-date-from',
-    '#sales-date-to',
-    '#sales-payment-filter',
-    '#sales-status-filter'
-  ]
-    .forEach(
-      selector => {
-
-        const element =
-          document.querySelector(
-            selector
-          );
-
-
-        if (!element) {
-          return;
-        }
-
-
-        element.addEventListener(
-          'change',
-          applySalesFilters
-        );
-
-
-        if (
-          element.type === 'date'
-        ) {
-
-          element.addEventListener(
-            'click',
-            () => {
-
-              if (
-                typeof element.showPicker
-                === 'function'
-              ) {
-
-                try {
-                  element.showPicker();
-                }
-                catch {}
-              }
-            }
-          );
-        }
-      }
-    );
-
-
-  document
-    .querySelector(
-      '#clear-sales-filters'
-    )
-    ?.addEventListener(
-      'click',
-      () => {
-
-        [
-          '#sales-date-from',
-          '#sales-date-to',
-          '#sales-payment-filter',
-          '#sales-status-filter'
-        ]
-          .forEach(
-            selector => {
-
-              const input =
-                document.querySelector(
-                  selector
-                );
-
-
-              if (input) {
-                input.value = '';
-              }
-            }
-          );
-
-
-        applySalesFilters();
-      }
-    );
-
-
-  applySalesFilters();
-}
-
-
-/* ============================================================
-   SALE DETAIL
-============================================================ */
-
-async function openSaleDetail(
-  saleId
-) {
-
-  if (!saleId) {
-    toast(
-      'No se encontró el ID de la venta.'
-    );
-    return;
-  }
-
-  try {
-
-    const response =
-      await authenticatedFetch(
-        `${API_BASE}/api/sales/${saleId}`
-      );
-
-    const data =
-      await response
-        .json()
-        .catch(
-          () => null
-        );
-
-    if (!response.ok) {
-      throw new Error(
-        data?.detail
-        || 'No fue posible consultar la venta.'
-      );
-    }
-
-    renderSaleDetailModal(
-      data
-    );
-
-  }
-  catch (error) {
-
-    toast(
-      error.message
-    );
-  }
-}
-
-
-function renderSaleDetailModal(
-  sale
-) {
-
-  document
-    .querySelector(
-      '#sale-detail-modal'
-    )
-    ?.remove();
-
-
-  const dateTime =
-    saleDateTime(
-      sale.created_at
-    );
-
-
-  const items =
-    Array.isArray(
-      sale.items
-    )
-      ? sale.items
-      : [];
-
-
-  const cancelled =
-    String(
-      sale.status || ''
-    ).toUpperCase()
-      === 'ANULADA';
-
-
-  document.body.insertAdjacentHTML(
-    'beforeend',
-    `
-      <div
-        class="modal-overlay"
-        id="sale-detail-modal"
-      >
-
-        <div
-          class="modal sale-detail-modal"
-        >
-
-          <div class="card-head">
-
-            <div>
-
-              <p class="eyebrow">
-                DETALLE DE VENTA
-              </p>
-
-              <h2>
-                ${sale.number}
-              </h2>
-
-              <small
-                style="color:var(--muted)"
-              >
-                ${dateTime.date}
-                ·
-                ${dateTime.time}
-              </small>
-
-            </div>
-
-
-            <button
-              type="button"
-              class="icon-btn"
-              id="close-sale-detail"
-            >
-              ×
-            </button>
-
-          </div>
-
-
-          <div class="sale-detail-meta">
-
-            <div>
-              <small>
-                Cliente
-              </small>
-
-              <strong>
-                ${
-                  sale.customer_name
-                  || 'Consumidor final'
-                }
-              </strong>
-            </div>
-
-
-            <div>
-              <small>
-                Método
-              </small>
-
-              <strong>
-                ${
-                  sale.payment_method
-                  || '—'
-                }
-              </strong>
-            </div>
-
-
-            <div>
-              <small>
-                Estado
-              </small>
-
-              <span
-                class="pill ${
-                  cancelled
-                    ? 'red'
-                    : 'green'
-                }"
-              >
-                ${sale.status}
-              </span>
-            </div>
-
-
-            <div>
-              <small>
-                Total
-              </small>
-
-              <strong
-                class="sale-detail-total"
-              >
-                ${money(
-                  sale.total
-                )}
-              </strong>
-            </div>
-
-          </div>
-
-
-          ${
-            cancelled
-              ? `
-                  <div
-                    class="sale-cancelled-info"
-                  >
-
-                    <strong>
-                      Venta anulada
-                    </strong>
-
-                    <span>
-                      ${
-                        sale.cancellation_reason
-                        || 'Sin motivo registrado'
-                      }
-                    </span>
-
-                    ${
-                      sale.cancelled_by_name
-                        ? `
-                            <small>
-                              Anulada por:
-                              ${sale.cancelled_by_name}
-                            </small>
-                          `
-                        : ''
-                    }
-
-                  </div>
-                `
-              : ''
-          }
-
-
-          <div
-            class="sale-detail-products"
-          >
-
-            <div
-              class="sale-detail-products-head"
-            >
-
-              <strong>
-                Productos vendidos
-              </strong>
-
-              <span class="pill">
-                ${items.length}
-              </span>
-
-            </div>
-
-
-            <div
-              class="sale-detail-table-wrap"
-            >
-
-              <table class="table">
-
-                <thead>
-                  <tr>
-                    <th>Producto</th>
-                    <th>Cant.</th>
-                    <th>Precio</th>
-                    <th>Subtotal</th>
-                  </tr>
-                </thead>
-
-                <tbody>
-
-                  ${
-                    items.length
-                      ? items.map(
-                          item => `
-                            <tr>
-
-                              <td>
-                                <strong>
-                                  ${item.product_name}
-                                </strong>
-
-                                <small>
-                                  ${
-                                    item.sku
-                                    || 'Sin SKU'
-                                  }
-                                </small>
-                              </td>
-
-                              <td>
-                                ${Number(
-                                  item.quantity
-                                )}
-                              </td>
-
-                              <td>
-                                ${money(
-                                  item.unit_price
-                                )}
-                              </td>
-
-                              <td>
-                                <strong>
-                                  ${money(
-                                    item.subtotal
-                                  )}
-                                </strong>
-                              </td>
-
-                            </tr>
-                          `
-                        ).join('')
-
-                      : `
-                          <tr>
-                            <td
-                              colspan="4"
-                              class="empty"
-                            >
-                              No hay productos
-                              registrados en esta venta.
-                            </td>
-                          </tr>
-                        `
-                  }
-
-                </tbody>
-
-              </table>
-
-            </div>
-
-          </div>
-
-
-          <div
-            class="sale-detail-grand-total"
-          >
-
-            <span>
-              Total venta
-            </span>
-
-            <strong>
-              ${money(
-                sale.total
-              )}
-            </strong>
-
-          </div>
-
-
-          <div class="modal-actions">
-
-            <button
-              type="button"
-              class="btn secondary"
-              id="sale-detail-close-button"
-            >
-              Cerrar
-            </button>
-
-            ${
-              !cancelled
-              && state.currentUser?.role === 'ADMIN'
-                ? `
-                    <button
-                      type="button"
-                      class="btn danger"
-                      id="cancel-sale-button"
-                    >
-                      Anular venta
-                    </button>
-                  `
-                : ''
-            }
-
-          </div>
-
-        </div>
-
-      </div>
-    `
-  );
-
-
-  document
-    .querySelector(
-      '#close-sale-detail'
-    )
-    .onclick =
-      closeSaleDetailModal;
-
-
-  document
-    .querySelector(
-      '#sale-detail-close-button'
-    )
-    .onclick =
-      closeSaleDetailModal;
-
-
-  const cancelButton =
-    document.querySelector(
-      '#cancel-sale-button'
-    );
-
-  if (cancelButton) {
-
-    cancelButton.onclick =
-      () => {
-        openCancelSaleModal(
-          sale
-        );
-      };
-  }
-
-
-  document
-    .querySelector(
-      '#sale-detail-modal'
-    )
-    .addEventListener(
-      'click',
-      event => {
-
-        if (
-          event.target.id
-          === 'sale-detail-modal'
-        ) {
-          closeSaleDetailModal();
-        }
-      }
-    );
-}
-
-
-function closeSaleDetailModal() {
-
-  document
-    .querySelector(
-      '#sale-detail-modal'
-    )
-    ?.remove();
-}
-
-
-
-/* ============================================================
-   SALE CANCELLATION
-============================================================ */
-
-function openCancelSaleModal(
-  sale
-) {
-
-  if (
-    state.currentUser?.role
-    !== 'ADMIN'
-  ) {
-
-    toast(
-      'Solo un administrador puede anular ventas.'
-    );
-
-    return;
-  }
-
-
-  document
-    .querySelector(
-      '#cancel-sale-modal'
-    )
-    ?.remove();
-
-
-  document.body.insertAdjacentHTML(
-    'beforeend',
-    `
-      <div
-        class="modal-overlay"
-        id="cancel-sale-modal"
-      >
-
-        <div
-          class="modal cancel-sale-modal"
-        >
-
-          <div class="card-head">
-
-            <div>
-
-              <p class="eyebrow">
-                CONTROL ADMINISTRATIVO
-              </p>
-
-              <h2>
-                Anular ${sale.number}
-              </h2>
-
-            </div>
-
-
-            <button
-              type="button"
-              class="icon-btn"
-              id="close-cancel-sale"
-            >
-              ×
-            </button>
-
-          </div>
-
-
-          <div class="cancel-sale-warning">
-
-            <strong>
-              Esta acción afectará el inventario
-            </strong>
-
-            <p>
-              Los productos de esta venta
-              serán devueltos automáticamente
-              al stock.
-            </p>
-
-            <p>
-              La venta no será eliminada.
-              Quedará marcada como
-              <strong>ANULADA</strong>
-              y el movimiento quedará registrado
-              en auditoría.
-            </p>
-
-          </div>
-
-
-          <label class="field full">
-
-            Motivo de la anulación
-
-            <textarea
-              id="cancel-sale-reason"
-              rows="4"
-              maxlength="500"
-              placeholder="Ej: Venta registrada por error, devolución autorizada..."
-            ></textarea>
-
-            <small>
-              Obligatorio · mínimo 4 caracteres
-            </small>
-
-          </label>
-
-
-          <div class="cancel-sale-summary">
-
-            <span>
-              Venta
-            </span>
-
-            <strong>
-              ${sale.number}
-            </strong>
-
-
-            <span>
-              Total
-            </span>
-
-            <strong>
-              ${money(
-                sale.total
-              )}
-            </strong>
-
-          </div>
-
-
-          <div class="modal-actions">
-
-            <button
-              type="button"
-              class="btn secondary"
-              id="cancel-sale-back"
-            >
-              Volver
-            </button>
-
-
-            <button
-              type="button"
-              class="btn danger"
-              id="confirm-cancel-sale"
-            >
-              Confirmar anulación
-            </button>
-
-          </div>
-
-        </div>
-
-      </div>
-    `
-  );
-
-
-  const close =
-    () => {
-
-      document
-        .querySelector(
-          '#cancel-sale-modal'
-        )
-        ?.remove();
-    };
-
-
-  document
-    .querySelector(
-      '#close-cancel-sale'
-    )
-    .onclick =
-      close;
-
-
-  document
-    .querySelector(
-      '#cancel-sale-back'
-    )
-    .onclick =
-      close;
-
-
-  document
-    .querySelector(
-      '#cancel-sale-modal'
-    )
-    .addEventListener(
-      'click',
-      event => {
-
-        if (
-          event.target.id
-          === 'cancel-sale-modal'
-        ) {
-
-          close();
-        }
-      }
-    );
-
-
-  document
-    .querySelector(
-      '#confirm-cancel-sale'
-    )
-    .onclick =
-      () =>
-        confirmCancelSale(
-          sale.id
-        );
-
-
-  setTimeout(
-    () => {
-
-      document
-        .querySelector(
-          '#cancel-sale-reason'
-        )
-        ?.focus();
-
-    },
-    50
-  );
-}
-
-
-async function confirmCancelSale(
-  saleId
-) {
-
-  if (
-    state.currentUser?.role
-    !== 'ADMIN'
-  ) {
-
-    toast(
-      'No tienes permisos para anular ventas.'
-    );
-
-    return;
-  }
-
-
-  const reason =
-    document
-      .querySelector(
-        '#cancel-sale-reason'
-      )
-      ?.value
-      ?.trim()
-      || '';
-
-
-  if (
-    reason.length < 4
-  ) {
-
-    toast(
-      'Escribe un motivo de al menos 4 caracteres.'
-    );
-
-    return;
-  }
-
-
-  const button =
-    document.querySelector(
-      '#confirm-cancel-sale'
-    );
-
-
-  if (button) {
-
-    button.disabled = true;
-    button.textContent =
-      'Anulando...';
-  }
-
-
-  try {
-
-    const response =
-      await authenticatedFetch(
-        `${API_BASE}/api/sales/${saleId}/cancel`,
-        {
-          method: 'POST',
-
-          headers: {
-            'Content-Type':
-              'application/json'
-          },
-
-          body: JSON.stringify({
-            reason
-          })
-        }
-      );
-
-
-    const data =
-      await response
-        .json()
-        .catch(
-          () => null
-        );
-
-
-    if (!response.ok) {
-
-      throw new Error(
-        data?.detail
-        || 'No fue posible anular la venta.'
-      );
-    }
-
-
-    document
-      .querySelector(
-        '#cancel-sale-modal'
-      )
-      ?.remove();
-
-
-    document
-      .querySelector(
-        '#sale-detail-modal'
-      )
-      ?.remove();
-
-
-    toast(
-      'Venta anulada. El inventario fue restaurado.'
-    );
-
-
-    /*
-      Recargamos el estado completo
-      para refrescar:
-      - ventas
-      - inventario
-      - notificaciones de stock
-      - dashboard
-    */
-    setTimeout(
-      () => {
-        window.location.reload();
-      },
-      650
-    );
-
-
-  }
-  catch (error) {
-
-    toast(
-      error.message
-    );
-
-
-    if (button) {
-
-      button.disabled = false;
-      button.textContent =
-        'Confirmar anulación';
-    }
-  }
-}
-
-
-/* ============================================================
-   SALE DETAIL EVENTS
-============================================================ */
-
-document.addEventListener(
-  'click',
-  event => {
-
-    const button =
-      event.target.closest(
-        '.sale-detail-btn'
-      );
-
-
-    if (!button) {
-      return;
-    }
-
-
-    event.preventDefault();
-
-
-    openSaleDetail(
-      Number(
-        button.dataset.saleId
-      )
-    );
-  }
-);
-
-
 /* ============================================================
    INVENTORY
 ============================================================ */
-
-
-/* ============================================================
-   STOCK NOTIFICATIONS
-============================================================ */
-
-function getStockNotifications() {
-
-  return (state.products || [])
-    .filter(
-      product =>
-        product.id != null
-    )
-    .map(
-      product => {
-
-        const stock =
-          Number(
-            product.stock || 0
-          );
-
-        const minimum =
-          Number(
-            product.minimum_stock || 0
-          );
-
-
-        if (stock <= 0) {
-
-          return {
-            ...product,
-            notification_type:
-              'OUT_OF_STOCK',
-            stock,
-            minimum
-          };
-        }
-
-
-        if (
-          minimum > 0
-          && stock <= minimum
-        ) {
-
-          return {
-            ...product,
-            notification_type:
-              'LOW_STOCK',
-            stock,
-            minimum
-          };
-        }
-
-
-        return null;
-      }
-    )
-    .filter(Boolean)
-    .sort(
-      (a, b) => {
-
-        if (
-          a.notification_type
-          !== b.notification_type
-        ) {
-          return (
-            a.notification_type
-              === 'OUT_OF_STOCK'
-              ? -1
-              : 1
-          );
-        }
-
-        return (
-          a.stock
-          - b.stock
-        );
-      }
-    );
-}
-
-
-function renderStockNotifications() {
-
-  const badge =
-    document.querySelector(
-      '#stock-notification-badge'
-    );
-
-  const counter =
-    document.querySelector(
-      '#stock-notification-count'
-    );
-
-  const list =
-    document.querySelector(
-      '#stock-notification-list'
-    );
-
-
-  if (
-    !badge
-    || !counter
-    || !list
-  ) {
-    return;
-  }
-
-
-  const notifications =
-    getStockNotifications();
-
-
-  const count =
-    notifications.length;
-
-
-  badge.textContent =
-    String(count);
-
-  badge.hidden =
-    count === 0;
-
-  counter.textContent =
-    String(count);
-
-
-  if (!count) {
-
-    list.innerHTML = `
-      <div class="stock-notification-empty">
-
-        <strong>
-          Inventario al día
-        </strong>
-
-        <span>
-          No hay productos con stock bajo o agotado.
-        </span>
-
-      </div>
-    `;
-
-    return;
-  }
-
-
-  list.innerHTML =
-    notifications
-      .map(
-        product => {
-
-          const exhausted =
-            product.notification_type
-            === 'OUT_OF_STOCK';
-
-
-          return `
-            <button
-              type="button"
-              class="
-                stock-notification-item
-                ${exhausted
-              ? 'is-out'
-              : 'is-low'
-            }
-              "
-              data-stock-notification-product="${product.id}"
-            >
-
-              <span
-                class="stock-notification-icon"
-              >
-                ${exhausted
-              ? '!'
-              : '↓'
-            }
-              </span>
-
-
-              <span
-                class="stock-notification-content"
-              >
-
-                <strong>
-                  ${product.name}
-                </strong>
-
-                <small>
-                  ${exhausted
-              ? 'Producto agotado'
-              : 'Quedan pocas unidades'
-            }
-                </small>
-
-                <span>
-                  Stock:
-                  <b>
-                    ${product.stock}
-                  </b>
-
-                  ${Number(
-              product.minimum_stock
-            ) > 0
-              ? `
-                          · aviso en
-                          <b>
-                            ${Number(
-                product.minimum_stock
-              )}
-                          </b>
-                        `
-              : ''
-            }
-                </span>
-
-              </span>
-
-            </button>
-          `;
-        }
-      )
-      .join('');
-}
-
-
-function openStockNotificationPanel() {
-
-  const panel =
-    document.querySelector(
-      '#stock-notification-panel'
-    );
-
-  const button =
-    document.querySelector(
-      '#stock-notification-button'
-    );
-
-
-  if (!panel) {
-    return;
-  }
-
-
-  renderStockNotifications();
-
-
-  panel.hidden =
-    false;
-
-
-  button?.setAttribute(
-    'aria-expanded',
-    'true'
-  );
-}
-
-
-function closeStockNotificationPanel() {
-
-  const panel =
-    document.querySelector(
-      '#stock-notification-panel'
-    );
-
-  const button =
-    document.querySelector(
-      '#stock-notification-button'
-    );
-
-
-  if (panel) {
-    panel.hidden = true;
-  }
-
-
-  button?.setAttribute(
-    'aria-expanded',
-    'false'
-  );
-}
-
-
-function toggleStockNotificationPanel() {
-
-  const panel =
-    document.querySelector(
-      '#stock-notification-panel'
-    );
-
-
-  if (!panel) {
-    return;
-  }
-
-
-  if (panel.hidden) {
-    openStockNotificationPanel();
-  }
-  else {
-    closeStockNotificationPanel();
-  }
-}
-
-
-/* ============================================================
-   STOCK NOTIFICATION EVENTS
-============================================================ */
-
-document.addEventListener(
-  'click',
-  event => {
-
-    const notificationButton =
-      event.target.closest(
-        '#stock-notification-button'
-      );
-
-
-    if (notificationButton) {
-
-      event.preventDefault();
-      event.stopPropagation();
-
-      toggleStockNotificationPanel();
-
-      return;
-    }
-
-
-    const inventoryButton =
-      event.target.closest(
-        '#stock-notification-inventory'
-      );
-
-
-    if (inventoryButton) {
-
-      event.preventDefault();
-
-      closeStockNotificationPanel();
-
-      render(
-        'inventory'
-      );
-
-      return;
-    }
-
-
-    const productItem =
-      event.target.closest(
-        '[data-stock-notification-product]'
-      );
-
-
-    if (productItem) {
-
-      event.preventDefault();
-
-      closeStockNotificationPanel();
-
-      render(
-        'inventory'
-      );
-
-      return;
-    }
-
-
-    const panel =
-      document.querySelector(
-        '#stock-notification-panel'
-      );
-
-
-    if (
-      panel
-      && !panel.hidden
-      && !event.target.closest(
-        '#stock-notification-panel'
-      )
-    ) {
-
-      closeStockNotificationPanel();
-    }
-
-  }
-);
-
 
 function inventory() {
 
@@ -5893,12 +4198,9 @@ function inventory() {
               data-product-price="${Number(
       p.price || 0
     )}"
-              data-stock-status="${Number(p.stock) <= 0
-      ? 'out'
-      : Number(p.minimum_stock || 0) > 0
-        && Number(p.stock) <= Number(p.minimum_stock)
-        ? 'low'
-        : 'available'
+              data-stock-status="${Number(p.stock) <= Number(p.minimum_stock ?? 20)
+      ? 'low'
+      : 'available'
     }"
               data-qr-status="${p.has_qr
       ? 'with'
@@ -5917,19 +4219,13 @@ function inventory() {
               <td>${money(p.price)}</td>
 
               <td>
-                <span class="pill ${Number(p.stock) <= 0
-      ? 'red'
-      : Number(p.minimum_stock || 0) > 0
-        && Number(p.stock) <= Number(p.minimum_stock)
-        ? 'yellow'
-        : 'green'
+                <span class="pill ${Number(p.stock) <= Number(p.minimum_stock ?? 20)
+      ? 'yellow'
+      : 'green'
     }">
-                  ${Number(p.stock) <= 0
-      ? 'Agotado'
-      : Number(p.minimum_stock || 0) > 0
-        && Number(p.stock) <= Number(p.minimum_stock)
-        ? 'Stock bajo'
-        : 'Disponible'
+                  ${Number(p.stock) <= Number(p.minimum_stock ?? 20)
+      ? 'Stock bajo'
+      : 'Disponible'
     }
                 </span>
               </td>
@@ -6410,21 +4706,21 @@ function openAccountModal() {
       '#close-open-account-modal'
     )
     .onclick =
-    closeOpenAccountModal;
+      closeOpenAccountModal;
 
   document
     .querySelector(
       '#cancel-open-account'
     )
     .onclick =
-    closeOpenAccountModal;
+      closeOpenAccountModal;
 
   document
     .querySelector(
       '#save-open-account'
     )
     .onclick =
-    submitOpenAccount;
+      submitOpenAccount;
 
 
   document
@@ -6806,24 +5102,24 @@ function openAccountConsumptionModal(
       '#close-account-consumption'
     )
     .onclick =
-    closeAccountConsumptionModal;
+      closeAccountConsumptionModal;
 
   document
     .querySelector(
       '#cancel-account-consumption'
     )
     .onclick =
-    closeAccountConsumptionModal;
+      closeAccountConsumptionModal;
 
   document
     .querySelector(
       '#save-account-consumption'
     )
     .onclick =
-    () =>
-      submitAccountConsumption(
-        account.id
-      );
+      () =>
+        submitAccountConsumption(
+          account.id
+        );
 }
 
 
@@ -6918,9 +5214,9 @@ function initializeAccountProductSearch() {
               class="sale-product-result"
               data-account-product-id="${product.id}"
               ${Number(product.stock) <= 0
-              ? 'disabled'
-              : ''
-            }
+                ? 'disabled'
+                : ''
+              }
             >
               <span class="sale-product-result-main">
 
@@ -7309,7 +5605,7 @@ function openCloseAccountModal(
       '#cancel-close-account'
     )
     .onclick =
-    closeCloseAccountModal;
+      closeCloseAccountModal;
 
 
   document
@@ -7317,10 +5613,10 @@ function openCloseAccountModal(
       '#confirm-close-account'
     )
     .onclick =
-    () =>
-      submitCloseAccount(
-        account.id
-      );
+      () =>
+        submitCloseAccount(
+          account.id
+        );
 }
 
 
@@ -7729,15 +6025,15 @@ function renderSaleFavorites() {
 
     <div class="sale-favorites-grid">
       ${products.map(
-    product => `
+        product => `
           <button
             type="button"
             class="sale-favorite-product"
             data-favorite-product-id="${product.id}"
             ${Number(product.stock) <= 0
-        ? 'disabled'
-        : ''
-      }
+              ? 'disabled'
+              : ''
+            }
           >
             <strong>
               ${product.name}
@@ -7749,7 +6045,7 @@ function renderSaleFavorites() {
             </small>
           </button>
         `
-  ).join('')}
+      ).join('')}
     </div>
   `;
 
@@ -8078,14 +6374,14 @@ function renderSaleProductResults(
           <button
             type="button"
             class="sale-product-result ${disabled
-            ? 'is-out-of-stock'
-            : ''
-          }"
+              ? 'is-out-of-stock'
+              : ''
+            }"
             data-sale-product-id="${product.id}"
             ${disabled
-            ? 'disabled'
-            : ''
-          }
+              ? 'disabled'
+              : ''
+            }
           >
             <span class="sale-product-result-main">
               <strong>
@@ -8094,9 +6390,9 @@ function renderSaleProductResults(
 
               <small>
                 ${product.sku
-            ? `SKU ${product.sku}`
-            : 'Sin SKU'
-          }
+                  ? `SKU ${product.sku}`
+                  : 'Sin SKU'
+                }
               </small>
             </span>
 
@@ -8107,22 +6403,22 @@ function renderSaleProductResults(
                 title="Favorito"
               >
                 ${getSaleFavoriteIds().includes(Number(product.id))
-            ? '★'
-            : '☆'
-          }
+                  ? '★'
+                  : '☆'
+                }
               </span>
               <strong>
                 ${money(product.price)}
               </strong>
 
               <small class="${stock <= 0
-            ? 'stock-empty'
-            : ''
-          }">
+                ? 'stock-empty'
+                : ''
+              }">
                 ${stock > 0
-            ? `Stock: ${stock}`
-            : 'Sin stock'
-          }
+                  ? `Stock: ${stock}`
+                  : 'Sin stock'
+                }
               </small>
             </span>
           </button>
@@ -8234,9 +6530,9 @@ function selectSaleProduct(
 
         <span>
           ${product.sku
-        ? `SKU ${product.sku} · `
-        : ''
-      }
+            ? `SKU ${product.sku} · `
+            : ''
+          }
           Stock ${Number(product.stock)}
         </span>
       </div>
@@ -8537,9 +6833,9 @@ function refreshSaleCart() {
                     class="sale-qty-plus"
                     data-product-id="${item.product_id}"
                     ${Number(item.quantity) >= Number(item.stock)
-      ? 'disabled'
-      : ''
-    }
+                      ? 'disabled'
+                      : ''
+                    }
                   >
                     +
                   </button>
@@ -8548,10 +6844,10 @@ function refreshSaleCart() {
                 <small class="sale-stock-after">
                   Quedan:
                   ${Math.max(
-      0,
-      Number(item.stock)
-      - Number(item.quantity)
-    )}
+                    0,
+                    Number(item.stock)
+                    - Number(item.quantity)
+                  )}
                 </small>
               </td>
               <td>${money(item.unit_price)}</td>
@@ -8816,7 +7112,7 @@ function openEditProductModal(
                 id="edit-product-name"
                 maxlength="160"
                 value="${String(product.name || '')
-      .replace(/"/g, '&quot;')}"
+                  .replace(/"/g, '&quot;')}"
               />
             </label>
 
@@ -8828,7 +7124,7 @@ function openEditProductModal(
                 id="edit-product-sku"
                 maxlength="60"
                 value="${String(product.sku || '')
-      .replace(/"/g, '&quot;')}"
+                  .replace(/"/g, '&quot;')}"
                 placeholder="Ej. LIC-WHI-001"
               />
             </label>
@@ -8839,19 +7135,19 @@ function openEditProductModal(
 
               <select id="edit-product-unit">
                 ${units.map(
-        unit => `
+                  unit => `
                     <option
                       value="${unit}"
                       ${unit === product.unit
-            ? 'selected'
-            : ''
-          }
+                        ? 'selected'
+                        : ''
+                      }
                     >
                       ${unit.charAt(0).toUpperCase()
-          + unit.slice(1)}
+                        + unit.slice(1)}
                     </option>
                   `
-      ).join('')}
+                ).join('')}
               </select>
             </label>
 
@@ -8870,7 +7166,7 @@ function openEditProductModal(
 
 
             <label class="field">
-              Avisarme cuando queden
+              Stock mínimo
 
               <input
                 id="edit-product-minimum-stock"
@@ -8878,8 +7174,8 @@ function openEditProductModal(
                 min="0"
                 step="1"
                 value="${Number(
-        product.minimum_stock || 0
-      )}"
+                  product.minimum_stock || 0
+                )}"
               />
             </label>
 
@@ -8917,23 +7213,23 @@ function openEditProductModal(
       '#close-edit-product-modal'
     )
     .onclick =
-    closeEditProductModal;
+      closeEditProductModal;
 
   document
     .querySelector(
       '#cancel-edit-product'
     )
     .onclick =
-    closeEditProductModal;
+      closeEditProductModal;
 
   document
     .querySelector(
       '#save-edit-product'
     )
     .onclick =
-    () => saveEditProduct(
-      product.id
-    );
+      () => saveEditProduct(
+        product.id
+      );
 
 
   document
@@ -9214,20 +7510,8 @@ function openProductModal() {
             </label>
 
             <label class="field full">
-              Avisarme cuando queden
-
-              <input
-                id="product-minimum-stock"
-                type="number"
-                min="0"
-                step="1"
-                value="0"
-              />
-
-              <small style="color:var(--muted)">
-                El sistema mostrará una alerta cuando
-                el stock llegue a esta cantidad.
-              </small>
+              Stock mínimo
+              <input id="product-minimum-stock" type="number" min="0" step="1" value="0" />
             </label>
           </div>
 
@@ -10559,23 +8843,24 @@ function updateTablePagination(
         <select
           class="input pagination-size"
         >
-          ${[10, 25, 50]
-      .map(
-        size => `
+          ${[10,25,50]
+            .map(
+              size => `
                 <option
                   value="${size}"
-                  ${Number(state.pageSize)
-            === size
-            ? 'selected'
-            : ''
-          }
+                  ${
+                    Number(state.pageSize)
+                      === size
+                        ? 'selected'
+                        : ''
+                  }
                 >
                   ${size}
                 </option>
               `
-      )
-      .join('')
-    }
+            )
+            .join('')
+          }
         </select>
       </label>
 
@@ -10587,10 +8872,11 @@ function updateTablePagination(
           secondary
           pagination-prev
         "
-        ${state.page <= 1
-      ? 'disabled'
-      : ''
-    }
+        ${
+          state.page <= 1
+            ? 'disabled'
+            : ''
+        }
       >
         ←
       </button>
@@ -10612,10 +8898,11 @@ function updateTablePagination(
           secondary
           pagination-next
         "
-        ${state.page >= totalPages
-      ? 'disabled'
-      : ''
-    }
+        ${
+          state.page >= totalPages
+            ? 'disabled'
+            : ''
+        }
       >
         →
       </button>
@@ -11328,9 +9615,7 @@ async function syncFromApi(showToast = true) {
     state.inventoryMovements = inventoryMovements;
 
     state.sales = sales.map(sale => ({
-      db_id: sale.id,
       id: sale.number,
-      customer_name: sale.customer_name,
       detail:
         `${sale.customer_name} · venta registrada`,
       total: Number(sale.total),
@@ -11362,8 +9647,6 @@ async function syncFromApi(showToast = true) {
       Array.isArray(openAccounts)
         ? openAccounts
         : [];
-
-    renderStockNotifications();
 
     if (currentView === 'audit') {
       await loadSystemAudit();
@@ -11425,10 +9708,10 @@ document
     if (currentView === 'audit') {
       bindAuditEvents();
     }
+  
 
-
-    refreshCurrentViewPagination();
-  });
+  refreshCurrentViewPagination();
+});
 
 render();
 
@@ -11462,7 +9745,8 @@ syncFromApi();
 function userRoleLabel(role) {
   const labels = {
     ADMIN: 'Administrador',
-    VENDEDOR: 'Vendedor'
+    CASHIER: 'Caja',
+    OPERATION: 'Operación'
   };
 
   return labels[role] || role;
@@ -11527,8 +9811,8 @@ function usersView() {
   const manageableUsers =
     state.users.filter(
       user =>
-        user.role === 'ADMIN' ||
-        user.role === 'VENDEDOR'
+        user.role === 'CASHIER' ||
+        user.role === 'OPERATION'
     );
 
   const activeUsers =
@@ -11680,12 +9964,12 @@ function usersView() {
               id="user-role"
               required
             >
-              <option value="VENDEDOR">
-                Vendedor
+              <option value="CASHIER">
+                Caja
               </option>
 
-              <option value="ADMIN">
-                Administrador
+              <option value="OPERATION">
+                Operación
               </option>
             </select>
           </label>
@@ -11766,12 +10050,12 @@ function usersView() {
               Todos los roles
             </option>
 
-            <option value="VENDEDOR">
-              Vendedor
+            <option value="CASHIER">
+              Caja
             </option>
 
-            <option value="ADMIN">
-              Administrador
+            <option value="OPERATION">
+              Operación
             </option>
           </select>
 
@@ -12036,8 +10320,8 @@ async function createOperationalUser(
 
 
   if (
-    payload.role !== 'VENDEDOR' &&
-    payload.role !== 'ADMIN'
+    payload.role !== 'CASHIER' &&
+    payload.role !== 'OPERATION'
   ) {
     toast(
       'Rol no permitido.'

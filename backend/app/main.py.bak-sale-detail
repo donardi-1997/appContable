@@ -78,7 +78,8 @@ AUTH_COOKIE_MAX_AGE = (
 
 VALID_ROLES = {
     "ADMIN",
-    "VENDEDOR",
+    "CASHIER",
+    "OPERATION",
 }
 
 
@@ -818,7 +819,8 @@ def create_user(
             status_code=422,
             detail=(
                 "Rol inválido. "
-                "Usa ADMIN o VENDEDOR."
+                "Usa ADMIN, CASHIER "
+                "u OPERATION."
             ),
         )
 
@@ -1448,7 +1450,7 @@ def delete_product_qr(
         Depends(
             require_roles(
                 "ADMIN",
-                "VENDEDOR",
+                "CASHIER",
             )
         )
     ],
@@ -1459,7 +1461,7 @@ def create_sale(
     actor: User = Depends(
         require_roles(
             "ADMIN",
-            "VENDEDOR",
+            "CASHIER",
         )
     ),
 ):
@@ -1736,83 +1738,6 @@ def list_sales(db: Session = Depends(get_db)):
 
 
 
-
-
-@app.get("/api/sales/{sale_id}")
-def get_sale_detail(
-    sale_id: int,
-    db: Session = Depends(get_db),
-    actor: User = Depends(
-        require_roles(
-            "ADMIN",
-            "VENDEDOR",
-        )
-    ),
-):
-    sale = db.get(
-        Sale,
-        sale_id,
-    )
-
-    if not sale:
-        raise HTTPException(
-            status_code=404,
-            detail="Venta no encontrada",
-        )
-
-    return {
-        "id": sale.id,
-        "number": sale.number,
-        "customer_name": sale.customer_name,
-        "payment_method": sale.payment_method,
-        "total": sale.total,
-        "status": sale.status,
-        "created_at": sale.created_at,
-
-        "cancellation_reason": getattr(
-            sale,
-            "cancellation_reason",
-            None,
-        ),
-
-        "cancelled_at": getattr(
-            sale,
-            "cancelled_at",
-            None,
-        ),
-
-        "cancelled_by_name": getattr(
-            sale,
-            "cancelled_by_name",
-            None,
-        ),
-
-        "items": [
-            {
-                "id": item.id,
-                "product_id": item.product_id,
-                "product_name": (
-                    item.product.name
-                    if item.product
-                    else "Producto"
-                ),
-                "sku": (
-                    item.product.sku
-                    if item.product
-                    else None
-                ),
-                "quantity": item.quantity,
-                "unit_price": item.unit_price,
-                "subtotal": (
-                    item.quantity
-                    * item.unit_price
-                ),
-            }
-            for item in sale.items
-        ],
-    }
-
-
 # ============================================================
 # OPEN ACCOUNTS / TABLES / VIP
 # ============================================================
@@ -1861,7 +1786,7 @@ def list_open_accounts(
     actor: User = Depends(
         require_roles(
             "ADMIN",
-            "VENDEDOR",
+            "CASHIER",
         )
     ),
 ):
@@ -1888,7 +1813,7 @@ def create_open_account(
     actor: User = Depends(
         require_roles(
             "ADMIN",
-            "VENDEDOR",
+            "CASHIER",
         )
     ),
 ):
@@ -2007,7 +1932,7 @@ def add_open_account_item(
     actor: User = Depends(
         require_roles(
             "ADMIN",
-            "VENDEDOR",
+            "CASHIER",
         )
     ),
 ):
@@ -2131,7 +2056,7 @@ def close_open_account(
     actor: User = Depends(
         require_roles(
             "ADMIN",
-            "VENDEDOR",
+            "CASHIER",
         )
     ),
 ):
@@ -2359,7 +2284,7 @@ def create_inventory_adjustment(
     actor: User = Depends(
         require_roles(
             "ADMIN",
-            "VENDEDOR",
+            "OPERATION",
         )
     ),
 ):
@@ -2460,7 +2385,7 @@ def create_inventory_adjustment(
         Depends(
             require_roles(
                 "ADMIN",
-                "VENDEDOR",
+                "CASHIER",
             )
         )
     ],
@@ -2471,7 +2396,7 @@ def open_cash_register(
     actor: User = Depends(
         require_roles(
             "ADMIN",
-            "VENDEDOR",
+            "CASHIER",
         )
     ),
 ):
@@ -2590,7 +2515,7 @@ def get_current_cash_register(
         Depends(
             require_roles(
                 "ADMIN",
-                "VENDEDOR",
+                "CASHIER",
             )
         )
     ],
@@ -2601,7 +2526,7 @@ def close_cash_register(
     actor: User = Depends(
         require_roles(
             "ADMIN",
-            "VENDEDOR",
+            "CASHIER",
         )
     ),
 ):
