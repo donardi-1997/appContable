@@ -3,4 +3,3 @@ uvicorn[standard]==0.34.0
 sqlalchemy==2.0.36
 pydantic-settings==2.7.1
 qrcode[pil]
-PyJWT>=2.8,<3

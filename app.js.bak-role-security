@@ -1,0 +1,4993 @@
+const state = {
+  sales: [
+    { id: 'V-1042', detail: 'Mesa 07 · 2 productos', total: 185000, payment: 'Tarjeta', status: 'Facturada' },
+    { id: 'V-1041', detail: 'Barra · 5 productos', total: 96000, payment: 'Efectivo', status: 'Facturada' },
+    { id: 'V-1040', detail: 'Mesa 03 · 3 productos', total: 142000, payment: 'QR', status: 'Pendiente' }
+  ],
+  products: [
+    { name: 'Ron Medellín 750ml', stock: 12, unit: 'botellas', price: 180000 },
+    { name: 'Cerveza Club Colombia', stock: 84, unit: 'unidades', price: 12000 },
+    { name: 'Agua con gas', stock: 18, unit: 'unidades', price: 7000 },
+    { name: 'Energizante', stock: 7, unit: 'unidades', price: 14000 }
+  ],
+  expenses: [
+    { concept: 'Compra de licores', provider: 'Distribuciones La Patrona', value: 480000, date: 'Hoy' },
+    { concept: 'Servicio de sonido', provider: 'Audio Pro', value: 220000, date: 'Ayer' }
+  ],
+  inventoryMovements: [],
+  cashRegister: {
+    status: 'CLOSED',
+    session: null
+  },
+  currentUser: null,
+  testInvoices: JSON.parse(localStorage.getItem('gato-test-invoices') || '[]')
+};
+
+const API_BASE = 'http://127.0.0.1:8000';
+
+const AUTH_TOKEN_KEY =
+  'lp-auth-token';
+
+const AUTH_USER_KEY =
+  'lp-auth-user';
+
+
+
+const money = n =>
+  new Intl.NumberFormat('es-CO', {
+    style: 'currency',
+    currency: 'COP',
+    maximumFractionDigits: 0
+  }).format(Number(n) || 0);
+
+const app = document.querySelector('#app');
+
+const toast = message => {
+  const element = document.querySelector('#toast');
+  element.textContent = message;
+  element.classList.add('show');
+
+  setTimeout(() => {
+    element.classList.remove('show');
+  }, 2400);
+};
+
+
+function getAdminKey() {
+  let key = sessionStorage.getItem(
+    'lp-admin-key'
+  );
+
+  if (!key) {
+    key = window.prompt(
+      'Ingresa la clave de administrador'
+    );
+
+    if (key) {
+      sessionStorage.setItem(
+        'lp-admin-key',
+        key.trim()
+      );
+    }
+  }
+
+  return key?.trim() || '';
+}
+
+
+async function adminFetch(
+  url,
+  options = {}
+) {
+  const headers =
+    new Headers(
+      options.headers || {}
+    );
+
+  const token =
+    localStorage.getItem(
+      AUTH_TOKEN_KEY
+    );
+
+  if (token) {
+    headers.set(
+      'Authorization',
+      `Bearer ${token}`
+    );
+  } else {
+
+    // Compatibilidad temporal.
+    const key =
+      getAdminKey();
+
+    if (!key) {
+      throw new Error(
+        'Se requiere autorización.'
+      );
+    }
+
+    headers.set(
+      'X-Admin-Key',
+      key
+    );
+  }
+
+  const response =
+    await fetch(
+      url,
+      {
+        ...options,
+        headers
+      }
+    );
+
+  if (
+    response.status === 401
+  ) {
+    logoutUser(
+      false
+    );
+
+    throw new Error(
+      'Tu sesión expiró. Inicia sesión nuevamente.'
+    );
+  }
+
+  if (
+    response.status === 403
+  ) {
+    throw new Error(
+      'No tienes permiso para realizar esta acción.'
+    );
+  }
+
+  return response;
+}
+
+
+/* ============================================================
+   AUTHENTICATION
+============================================================ */
+
+function getAuthToken() {
+  return localStorage.getItem(
+    AUTH_TOKEN_KEY
+  );
+}
+
+
+function getRoleLabel(role) {
+  const labels = {
+    ADMIN:
+      'Administrador',
+
+    CASHIER:
+      'Caja',
+
+    OPERATION:
+      'Operación'
+  };
+
+  return (
+    labels[role]
+    || role
+    || 'Usuario'
+  );
+}
+
+
+function getUserInitials(
+  fullName
+) {
+  const parts =
+    String(
+      fullName || ''
+    )
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+
+  if (!parts.length) {
+    return 'U';
+  }
+
+  if (parts.length === 1) {
+    return parts[0]
+      .slice(0, 2)
+      .toUpperCase();
+  }
+
+  return (
+    parts[0][0]
+    + parts[1][0]
+  ).toUpperCase();
+}
+
+
+function allowedViewsForRole(
+  role
+) {
+  switch (role) {
+
+    case 'ADMIN':
+      return [
+        'dashboard',
+        'sales',
+        'inventory',
+        'expenses',
+        'invoices'
+      ];
+
+    case 'CASHIER':
+      return [
+        'dashboard',
+        'sales',
+        'inventory'
+      ];
+
+    case 'OPERATION':
+      return [
+        'dashboard',
+        'inventory'
+      ];
+
+    default:
+      return [
+        'dashboard'
+      ];
+  }
+}
+
+
+function applyRoleNavigation() {
+  const user =
+    state.currentUser;
+
+  if (!user) {
+    return;
+  }
+
+  const allowed =
+    allowedViewsForRole(
+      user.role
+    );
+
+  document
+    .querySelectorAll(
+      '#nav [data-view]'
+    )
+    .forEach(
+      button => {
+
+        const permitted =
+          allowed.includes(
+            button.dataset.view
+          );
+
+        button.hidden =
+          !permitted;
+      }
+    );
+
+
+  if (
+    !allowed.includes(
+      currentView
+    )
+  ) {
+    currentView =
+      allowed[0] ||
+      'dashboard';
+
+    sessionStorage.setItem(
+      'lp-current-view',
+      currentView
+    );
+  }
+}
+
+
+function updateAuthenticatedUserUI() {
+  const user =
+    state.currentUser;
+
+  if (!user) {
+    return;
+  }
+
+  const name =
+    document.querySelector(
+      '#current-user-name'
+    );
+
+  const role =
+    document.querySelector(
+      '#current-user-role'
+    );
+
+  const avatar =
+    document.querySelector(
+      '#current-user-avatar'
+    );
+
+  if (name) {
+    name.textContent =
+      user.full_name ||
+      user.username;
+  }
+
+  if (role) {
+    role.textContent =
+      getRoleLabel(
+        user.role
+      );
+  }
+
+  if (avatar) {
+    avatar.textContent =
+      getUserInitials(
+        user.full_name ||
+        user.username
+      );
+  }
+
+  applyRoleNavigation();
+}
+
+
+function showLoginScreen() {
+  document.body.classList.add(
+    'auth-locked'
+  );
+
+  document
+    .querySelector(
+      '#login-screen'
+    )
+    ?.classList.remove(
+      'is-hidden'
+    );
+
+  const password =
+    document.querySelector(
+      '#login-password'
+    );
+
+  if (password) {
+    password.value = '';
+  }
+}
+
+
+function hideLoginScreen() {
+  document.body.classList.remove(
+    'auth-locked'
+  );
+
+  document
+    .querySelector(
+      '#login-screen'
+    )
+    ?.classList.add(
+      'is-hidden'
+    );
+}
+
+
+async function loginUser(
+  username,
+  password
+) {
+  const response =
+    await fetch(
+      `${API_BASE}/api/auth/login`,
+      {
+        method: 'POST',
+
+        headers: {
+          'Content-Type':
+            'application/json'
+        },
+
+        body:
+          JSON.stringify({
+            username,
+            password
+          })
+      }
+    );
+
+  const data =
+    await response
+      .json()
+      .catch(
+        () => ({})
+      );
+
+  if (!response.ok) {
+    throw new Error(
+      data.detail ||
+      'No fue posible iniciar sesión.'
+    );
+  }
+
+  localStorage.setItem(
+    AUTH_TOKEN_KEY,
+    data.access_token
+  );
+
+  localStorage.setItem(
+    AUTH_USER_KEY,
+    JSON.stringify(
+      data.user
+    )
+  );
+
+  state.currentUser =
+    data.user;
+
+  hideLoginScreen();
+
+  updateAuthenticatedUserUI();
+
+  currentView =
+    allowedViewsForRole(
+      data.user.role
+    )[0] ||
+    'dashboard';
+
+  sessionStorage.setItem(
+    'lp-current-view',
+    currentView
+  );
+
+  await syncFromApi(
+    false
+  );
+
+  render(
+    currentView
+  );
+}
+
+
+function logoutUser(
+  showMessage = true
+) {
+  localStorage.removeItem(
+    AUTH_TOKEN_KEY
+  );
+
+  localStorage.removeItem(
+    AUTH_USER_KEY
+  );
+
+  sessionStorage.removeItem(
+    'lp-admin-key'
+  );
+
+  state.currentUser =
+    null;
+
+  currentView =
+    'dashboard';
+
+  sessionStorage.removeItem(
+    'lp-current-view'
+  );
+
+  showLoginScreen();
+
+  if (showMessage) {
+    toast(
+      'Sesión cerrada correctamente.'
+    );
+  }
+}
+
+
+async function restoreAuthSession() {
+  const token =
+    getAuthToken();
+
+  if (!token) {
+    showLoginScreen();
+
+    return false;
+  }
+
+  try {
+    const response =
+      await fetch(
+        `${API_BASE}/api/auth/me`,
+        {
+          headers: {
+            Authorization:
+              `Bearer ${token}`
+          }
+        }
+      );
+
+    if (!response.ok) {
+      throw new Error(
+        'Sesión inválida'
+      );
+    }
+
+    const user =
+      await response.json();
+
+    state.currentUser =
+      user;
+
+    localStorage.setItem(
+      AUTH_USER_KEY,
+      JSON.stringify(
+        user
+      )
+    );
+
+    hideLoginScreen();
+
+    updateAuthenticatedUserUI();
+
+    const allowed =
+      allowedViewsForRole(
+        user.role
+      );
+
+    if (
+      !allowed.includes(
+        currentView
+      )
+    ) {
+      currentView =
+        allowed[0] ||
+        'dashboard';
+    }
+
+    await syncFromApi(
+      false
+    );
+
+    render(
+      currentView
+    );
+
+    return true;
+
+  } catch (error) {
+    logoutUser(
+      false
+    );
+
+    return false;
+  }
+}
+
+
+function initializeAuthentication() {
+  const form =
+    document.querySelector(
+      '#login-form'
+    );
+
+  const logout =
+    document.querySelector(
+      '#logout-button'
+    );
+
+
+  form?.addEventListener(
+    'submit',
+    async event => {
+      event.preventDefault();
+
+      const username =
+        document
+          .querySelector(
+            '#login-username'
+          )
+          ?.value
+          .trim();
+
+      const password =
+        document
+          .querySelector(
+            '#login-password'
+          )
+          ?.value;
+
+      const errorBox =
+        document.querySelector(
+          '#login-error'
+        );
+
+      const submit =
+        document.querySelector(
+          '#login-submit'
+        );
+
+
+      if (errorBox) {
+        errorBox.hidden =
+          true;
+      }
+
+      if (submit) {
+        submit.disabled =
+          true;
+
+        submit.textContent =
+          'Ingresando…';
+      }
+
+
+      try {
+        await loginUser(
+          username,
+          password
+        );
+
+      } catch (error) {
+
+        if (errorBox) {
+          errorBox.textContent =
+            error.message;
+
+          errorBox.hidden =
+            false;
+        }
+
+      } finally {
+
+        if (submit) {
+          submit.disabled =
+            false;
+
+          submit.textContent =
+            'Iniciar sesión';
+        }
+      }
+    }
+  );
+
+
+  logout?.addEventListener(
+    'click',
+    () => {
+      logoutUser();
+    }
+  );
+
+
+  restoreAuthSession();
+}
+
+
+
+function closeQrModal() {
+  document
+    .querySelector('#qr-modal')
+    ?.remove();
+}
+
+
+function showQrModal(qr) {
+  closeQrModal();
+
+  document.body.insertAdjacentHTML(
+    'beforeend',
+    `
+      <div
+        class="modal-overlay"
+        id="qr-modal"
+      >
+        <div class="modal">
+          <div class="card-head">
+            <div>
+              <p class="eyebrow">
+                CONTROL DE PRODUCTO
+              </p>
+
+              <h2>
+                Código QR
+              </h2>
+            </div>
+
+            <button
+              type="button"
+              class="icon-btn"
+              id="close-qr-modal"
+            >
+              ×
+            </button>
+          </div>
+
+          <div
+            style="
+              text-align:center;
+              padding:24px 8px;
+            "
+          >
+            <h3>
+              ${qr.product_name}
+            </h3>
+
+            <p
+              style="
+                opacity:.7;
+                margin-bottom:18px;
+              "
+            >
+              ${qr.sku || 'Sin SKU'}
+            </p>
+
+            <div
+              style="
+                background:#fff;
+                display:inline-block;
+                padding:18px;
+                border-radius:18px;
+              "
+            >
+              <img
+                src="${qr.image_data_url}"
+                alt="QR ${qr.product_name}"
+                style="
+                  width:240px;
+                  max-width:70vw;
+                  display:block;
+                "
+              />
+            </div>
+
+            <p
+              style="
+                margin-top:18px;
+                font-family:monospace;
+                word-break:break-all;
+              "
+            >
+              ${qr.code}
+            </p>
+
+            <div
+              style="
+                display:flex;
+                gap:10px;
+                justify-content:center;
+                flex-wrap:wrap;
+                margin-top:20px;
+              "
+            >
+              <button
+                type="button"
+                class="btn primary"
+                id="print-product-qr"
+              >
+                Imprimir QR
+              </button>
+
+              <a
+                class="btn secondary"
+                href="${qr.image_data_url}"
+                download="QR-${qr.product_id}.png"
+              >
+                Descargar PNG
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    `
+  );
+
+  document
+    .querySelector('#close-qr-modal')
+    ?.addEventListener(
+      'click',
+      closeQrModal
+    );
+
+  document
+    .querySelector('#qr-modal')
+    ?.addEventListener(
+      'click',
+      event => {
+        if (
+          event.target.id === 'qr-modal'
+        ) {
+          closeQrModal();
+        }
+      }
+    );
+
+  document
+    .querySelector('#print-product-qr')
+    ?.addEventListener(
+      'click',
+      () => {
+        const printWindow =
+          window.open('', '_blank');
+
+        if (!printWindow) {
+          toast(
+            'El navegador bloqueó la ventana de impresión.'
+          );
+
+          return;
+        }
+
+        printWindow.document.write(`
+          <!doctype html>
+          <html lang="es">
+          <head>
+            <meta charset="UTF-8">
+            <title>
+              QR ${qr.product_name}
+            </title>
+
+            <style>
+              body {
+                margin: 0;
+                font-family: Arial, sans-serif;
+                text-align: center;
+              }
+
+              .label {
+                width: 70mm;
+                min-height: 90mm;
+                margin: 0 auto;
+                padding: 8mm;
+                box-sizing: border-box;
+              }
+
+              img {
+                width: 48mm;
+                height: 48mm;
+              }
+
+              h2 {
+                margin: 4mm 0 1mm;
+                font-size: 16px;
+              }
+
+              p {
+                margin: 1mm 0;
+                font-size: 10px;
+              }
+
+              .code {
+                font-family: monospace;
+                word-break: break-all;
+              }
+            </style>
+          </head>
+
+          <body>
+            <div class="label">
+              <strong>
+                LA PATRONA VIP
+              </strong>
+
+              <h2>
+                ${qr.product_name}
+              </h2>
+
+              <img
+                src="${qr.image_data_url}"
+              />
+
+              <p>
+                ${qr.sku || 'Sin SKU'}
+              </p>
+
+              <p class="code">
+                ${qr.code}
+              </p>
+            </div>
+
+            <script>
+              window.onload = () => {
+                window.print();
+              };
+            <\/script>
+          </body>
+          </html>
+        `);
+
+        printWindow.document.close();
+      }
+    );
+}
+
+
+
+
+async function generateProductQr(productId) {
+  productId = Number(productId);
+
+  currentView = 'inventory';
+
+  if (!productId) {
+    toast(
+      'Producto inválido.'
+    );
+
+    return;
+  }
+
+  try {
+    const response = await adminFetch(
+      `${API_BASE}/api/products/${productId}/qr`,
+      {
+        method: 'POST'
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json()
+        .catch(() => ({}));
+
+      throw new Error(
+        error.detail ||
+        'No fue posible obtener el QR.'
+      );
+    }
+
+    const qr = await response.json();
+
+    // Actualizamos productos para refrescar has_qr.
+    await syncFromApi(false);
+
+    // Volvemos explícitamente a Inventario.
+    render('inventory');
+
+    // Abrimos el QR después del render.
+    showQrModal(qr);
+
+    toast(
+      qr.created
+        ? 'QR generado correctamente.'
+        : 'QR cargado correctamente.'
+    );
+
+  } catch (error) {
+    currentView = 'inventory';
+
+    toast(
+      error.message
+    );
+  }
+}
+
+
+async function deleteProductQr(productId) {
+  productId = Number(productId);
+
+  currentView = 'inventory';
+
+  const product = state.products.find(
+    item =>
+      Number(item.id) === productId
+  );
+
+  if (!product) {
+    toast(
+      'Producto no encontrado.'
+    );
+
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `¿Eliminar el código QR de "${product.name}"?\n\n` +
+    'El producto, stock, ventas e historial se conservarán.'
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    const response = await adminFetch(
+      `${API_BASE}/api/products/${productId}/qr`,
+      {
+        method: 'DELETE'
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json()
+        .catch(() => ({}));
+
+      throw new Error(
+        error.detail ||
+        'No fue posible eliminar el QR.'
+      );
+    }
+
+    // Refresca state.products y has_qr.
+    await syncFromApi(false);
+
+    // Mantiene la vista en Inventario.
+    render('inventory');
+
+    toast(
+      `QR de ${product.name} eliminado correctamente.`
+    );
+
+  } catch (error) {
+    currentView = 'inventory';
+
+    toast(
+      error.message
+    );
+  }
+}
+
+
+async function deleteProductById(productId) {
+  productId = Number(productId);
+
+  const product = state.products.find(
+    item =>
+      Number(item.id) === productId
+  );
+
+  if (!product) {
+    toast(
+      'Producto no encontrado.'
+    );
+
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `¿Eliminar "${product.name}"?\n\n` +
+    'Las ventas y movimientos históricos ' +
+    'se conservarán.'
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    const response = await adminFetch(
+      `${API_BASE}/api/products/${productId}`,
+      {
+        method: 'DELETE'
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json()
+        .catch(() => ({}));
+
+      throw new Error(
+        error.detail ||
+        'No fue posible eliminar el producto.'
+      );
+    }
+
+    await syncFromApi(false);
+
+    render('inventory');
+
+    toast(
+      `${product.name} eliminado del inventario.`
+    );
+
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+async function generateSelectedProductQr() {
+  const select =
+    document.querySelector(
+      '#admin-product-select'
+    );
+
+  if (!select) {
+    toast(
+      'No se encontró el selector de productos.'
+    );
+
+    return;
+  }
+
+  const productId =
+    Number(select.value);
+
+  if (!productId) {
+    toast(
+      'Selecciona un producto.'
+    );
+
+    return;
+  }
+
+  currentView = 'inventory';
+
+  await generateProductQr(
+    productId
+  );
+}
+
+
+async function deleteSelectedProduct() {
+  const select = document.querySelector(
+    '#admin-product-select'
+  );
+
+  const productId = Number(
+    select?.value
+  );
+
+  if (!productId) {
+    toast(
+      'Selecciona un producto.'
+    );
+
+    return;
+  }
+
+  const product = state.products.find(
+    item =>
+      Number(item.id) === productId
+  );
+
+  if (!product) {
+    toast(
+      'Producto no encontrado.'
+    );
+
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `¿Eliminar "${product.name}" del inventario?\n\n` +
+    'Las ventas anteriores se conservarán.'
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    const response = await adminFetch(
+      `${API_BASE}/api/products/${productId}`,
+      {
+        method: 'DELETE'
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json()
+        .catch(() => ({}));
+
+      throw new Error(
+        error.detail ||
+        'No fue posible eliminar el producto.'
+      );
+    }
+
+    await syncFromApi(false);
+
+    render('inventory');
+
+    toast(
+      `${product.name} fue eliminado del inventario.`
+    );
+
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+
+
+
+/* ============================================================
+   DASHBOARD
+============================================================ */
+
+function dashboard() {
+  const now = new Date();
+
+  const localDateKey = dateValue => {
+    if (!dateValue) {
+      return '';
+    }
+
+    const date = new Date(dateValue);
+
+    if (Number.isNaN(date.getTime())) {
+      return '';
+    }
+
+    return [
+      date.getFullYear(),
+      String(
+        date.getMonth() + 1
+      ).padStart(2, '0'),
+      String(
+        date.getDate()
+      ).padStart(2, '0')
+    ].join('-');
+  };
+
+
+  const startOfDay = date => {
+    const result = new Date(date);
+
+    result.setHours(
+      0, 0, 0, 0
+    );
+
+    return result;
+  };
+
+
+  const endOfDay = date => {
+    const result = new Date(date);
+
+    result.setHours(
+      23, 59, 59, 999
+    );
+
+    return result;
+  };
+
+
+  const getPeriodRange = period => {
+    const end = endOfDay(now);
+    let start = startOfDay(now);
+
+    switch (period) {
+
+      case 'week': {
+        const day =
+          now.getDay() || 7;
+
+        start.setDate(
+          start.getDate() - day + 1
+        );
+
+        break;
+      }
+
+      case 'month':
+        start = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          1
+        );
+        break;
+
+      case 'year':
+        start = new Date(
+          now.getFullYear(),
+          0,
+          1
+        );
+        break;
+
+      case 'day':
+      default:
+        break;
+    }
+
+    return {
+      start,
+      end
+    };
+  };
+
+
+  const periodRange =
+    getPeriodRange(
+      dashboardPeriod
+    );
+
+
+  const isInsidePeriod = value => {
+    if (!value) {
+      return false;
+    }
+
+    const date =
+      new Date(value);
+
+    if (
+      Number.isNaN(
+        date.getTime()
+      )
+    ) {
+      return false;
+    }
+
+    return (
+      date >= periodRange.start &&
+      date <= periodRange.end
+    );
+  };
+
+
+  const periodSales =
+    state.sales.filter(
+      sale =>
+        isInsidePeriod(
+          sale.created_at
+        )
+    );
+
+
+  const periodExpenses =
+    state.expenses.filter(
+      expense =>
+        isInsidePeriod(
+          expense.created_at
+        )
+    );
+
+
+  const salesTotal =
+    periodSales.reduce(
+      (total, sale) =>
+        total +
+        Number(
+          sale.total || 0
+        ),
+      0
+    );
+
+
+  const expensesTotal =
+    periodExpenses.reduce(
+      (total, expense) =>
+        total +
+        Number(
+          expense.value || 0
+        ),
+      0
+    );
+
+
+  const netMovement =
+    salesTotal -
+    expensesTotal;
+
+
+  const averageTicket =
+    periodSales.length
+      ? salesTotal /
+      periodSales.length
+      : 0;
+
+
+  const lowStockProducts =
+    state.products.filter(
+      product =>
+        Number(
+          product.stock
+        ) <=
+        Number(
+          product.minimum_stock ?? 20
+        )
+    );
+
+
+  const productsWithQr =
+    state.products.filter(
+      product =>
+        product.has_qr
+    ).length;
+
+
+  const cashIsOpen =
+    state.cashRegister?.status ===
+    'OPEN' &&
+    state.cashRegister?.session;
+
+
+  const cashExpected =
+    cashIsOpen
+      ? Number(
+        state.cashRegister
+          .session
+          .expected_amount || 0
+      )
+      : 0;
+
+
+  const cashOpening =
+    cashIsOpen
+      ? Number(
+        state.cashRegister
+          .session
+          .opening_amount || 0
+      )
+      : 0;
+
+
+  const cashSales =
+    cashIsOpen
+      ? Number(
+        state.cashRegister
+          .session
+          .cash_sales_total || 0
+      )
+      : 0;
+
+
+  const cashExpenses =
+    cashIsOpen
+      ? Number(
+        state.cashRegister
+          .session
+          .expenses_total || 0
+      )
+      : 0;
+
+
+  const periodNames = {
+    day: 'Hoy',
+    week: 'Esta semana',
+    month: 'Este mes',
+    year: 'Este año'
+  };
+
+
+  // ==========================================================
+  // DATOS DEL GRÁFICO
+  // ==========================================================
+
+  let chartData = [];
+
+
+  if (dashboardPeriod === 'day') {
+
+    const ranges = [
+      [0, 4],
+      [4, 8],
+      [8, 12],
+      [12, 16],
+      [16, 20],
+      [20, 24]
+    ];
+
+    chartData =
+      ranges.map(
+        ([from, to]) => {
+
+          const total =
+            periodSales
+              .filter(
+                sale => {
+                  const hour =
+                    new Date(
+                      sale.created_at
+                    ).getHours();
+
+                  return (
+                    hour >= from &&
+                    hour < to
+                  );
+                }
+              )
+              .reduce(
+                (sum, sale) =>
+                  sum +
+                  Number(
+                    sale.total || 0
+                  ),
+                0
+              );
+
+          return {
+            label:
+              `${String(from).padStart(2, '0')}:00`,
+            total
+          };
+        }
+      );
+
+  } else if (
+    dashboardPeriod === 'week'
+  ) {
+
+    const formatter =
+      new Intl.DateTimeFormat(
+        'es-CO',
+        {
+          weekday: 'short'
+        }
+      );
+
+    chartData =
+      Array.from(
+        { length: 7 },
+        (_, index) => {
+
+          const date =
+            new Date(
+              periodRange.start
+            );
+
+          date.setDate(
+            date.getDate() +
+            index
+          );
+
+          const key =
+            localDateKey(date);
+
+          const total =
+            periodSales
+              .filter(
+                sale =>
+                  localDateKey(
+                    sale.created_at
+                  ) === key
+              )
+              .reduce(
+                (sum, sale) =>
+                  sum +
+                  Number(
+                    sale.total || 0
+                  ),
+                0
+              );
+
+          return {
+            label:
+              formatter
+                .format(date)
+                .replace('.', ''),
+            total
+          };
+        }
+      );
+
+  } else if (
+    dashboardPeriod === 'month'
+  ) {
+
+    const weeks = [
+      [1, 7],
+      [8, 14],
+      [15, 21],
+      [22, 31]
+    ];
+
+    chartData =
+      weeks.map(
+        ([from, to], index) => {
+
+          const total =
+            periodSales
+              .filter(
+                sale => {
+                  const date =
+                    new Date(
+                      sale.created_at
+                    );
+
+                  const day =
+                    date.getDate();
+
+                  return (
+                    day >= from &&
+                    day <= to
+                  );
+                }
+              )
+              .reduce(
+                (sum, sale) =>
+                  sum +
+                  Number(
+                    sale.total || 0
+                  ),
+                0
+              );
+
+          return {
+            label:
+              `Sem ${index + 1}`,
+            total
+          };
+        }
+      );
+
+  } else {
+
+    const monthNames = [
+      'Ene',
+      'Feb',
+      'Mar',
+      'Abr',
+      'May',
+      'Jun',
+      'Jul',
+      'Ago',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dic'
+    ];
+
+    chartData =
+      monthNames.map(
+        (label, month) => {
+
+          const total =
+            periodSales
+              .filter(
+                sale =>
+                  new Date(
+                    sale.created_at
+                  ).getMonth() === month
+              )
+              .reduce(
+                (sum, sale) =>
+                  sum +
+                  Number(
+                    sale.total || 0
+                  ),
+                0
+              );
+
+          return {
+            label,
+            total
+          };
+        }
+      );
+  }
+
+
+  const maxChartValue =
+    Math.max(
+      ...chartData.map(
+        item =>
+          item.total
+      ),
+      1
+    );
+
+
+  const recentSales =
+    [...periodSales]
+      .sort(
+        (a, b) =>
+          new Date(
+            b.created_at || 0
+          ) -
+          new Date(
+            a.created_at || 0
+          )
+      )
+      .slice(0, 5);
+
+
+  return `
+    <div class="dashboard-welcome">
+
+      <div>
+        <p class="eyebrow">
+          OPERACIÓN EN TIEMPO REAL
+        </p>
+
+        <h2>
+          Estado general del negocio
+        </h2>
+
+        <p>
+          Analiza ventas y gastos por
+          día, semana, mes o año.
+        </p>
+      </div>
+
+
+      <div class="dashboard-controls">
+
+        <select
+          id="dashboard-period"
+          class="input dashboard-period-select"
+        >
+          <option
+            value="day"
+            ${dashboardPeriod === 'day'
+      ? 'selected'
+      : ''
+    }
+          >
+            Día
+          </option>
+
+          <option
+            value="week"
+            ${dashboardPeriod === 'week'
+      ? 'selected'
+      : ''
+    }
+          >
+            Semana
+          </option>
+
+          <option
+            value="month"
+            ${dashboardPeriod === 'month'
+      ? 'selected'
+      : ''
+    }
+          >
+            Mes
+          </option>
+
+          <option
+            value="year"
+            ${dashboardPeriod === 'year'
+      ? 'selected'
+      : ''
+    }
+          >
+            Año
+          </option>
+        </select>
+
+
+        <span
+          class="pill ${cashIsOpen
+      ? 'green'
+      : 'yellow'
+    }"
+        >
+          ${cashIsOpen
+      ? 'Caja abierta'
+      : 'Caja cerrada'
+    }
+        </span>
+
+      </div>
+
+    </div>
+
+
+    <div class="dashboard-period-heading">
+
+      <span>
+        ${periodNames[
+    dashboardPeriod
+    ]
+    }
+      </span>
+
+      <small>
+        ${periodRange.start
+      .toLocaleDateString(
+        'es-CO'
+      )
+    }
+        ${dashboardPeriod !== 'day'
+      ? ` → ${periodRange.end
+        .toLocaleDateString(
+          'es-CO'
+        )
+      }`
+      : ''
+    }
+      </small>
+
+    </div>
+
+
+    <div class="grid metrics dashboard-metrics">
+
+      <div class="card metric">
+
+        <span class="label">
+          Ventas
+        </span>
+
+        <div class="value">
+          ${money(salesTotal)}
+        </div>
+
+        <span class="delta positive">
+          ${periodSales.length}
+          ${periodSales.length === 1
+      ? 'venta'
+      : 'ventas'
+    }
+        </span>
+
+      </div>
+
+
+      <div class="card metric">
+
+        <span class="label">
+          Gastos
+        </span>
+
+        <div class="value">
+          ${money(expensesTotal)}
+        </div>
+
+        <span class="delta negative">
+          ${periodExpenses.length}
+          ${periodExpenses.length === 1
+      ? 'egreso'
+      : 'egresos'
+    }
+        </span>
+
+      </div>
+
+
+      <div class="card metric">
+
+        <span class="label">
+          Movimiento neto
+        </span>
+
+        <div class="value">
+          ${money(netMovement)}
+        </div>
+
+        <span
+          class="delta ${netMovement >= 0
+      ? 'positive'
+      : 'negative'
+    }"
+        >
+          Ventas menos gastos
+        </span>
+
+      </div>
+
+
+      <div class="card metric">
+
+        <span class="label">
+          Ticket promedio
+        </span>
+
+        <div class="value">
+          ${money(averageTicket)}
+        </div>
+
+        <span class="delta positive">
+          Promedio por venta
+        </span>
+
+      </div>
+
+    </div>
+
+
+    <div class="grid dashboard-main-grid">
+
+      <section class="card dashboard-sales-chart">
+
+        <div class="card-head">
+
+          <div>
+            <h2>
+              Ventas · ${periodNames[
+    dashboardPeriod
+    ]
+    }
+            </h2>
+
+            <small>
+              Distribución del período
+            </small>
+          </div>
+
+          <span
+            class="link"
+            data-view="sales"
+          >
+            Ver ventas →
+          </span>
+
+        </div>
+
+
+        <div
+          class="
+            dashboard-chart
+            dashboard-chart-${dashboardPeriod}
+          "
+        >
+
+          ${chartData.map(
+      item => {
+
+        const percentage =
+          item.total > 0
+            ? Math.max(
+              7,
+              (
+                item.total /
+                maxChartValue
+              ) * 100
+            )
+            : 2;
+
+        return `
+                  <div class="dashboard-bar-item">
+
+                    <div
+                      class="dashboard-bar-value"
+                      title="${money(
+          item.total
+        )}"
+                    >
+                      ${item.total
+            ? money(
+              item.total
+            )
+            : '—'
+          }
+                    </div>
+
+                    <div
+                      class="dashboard-bar-track"
+                    >
+                      <div
+                        class="dashboard-bar-fill"
+                        style="
+                          height:
+                            ${percentage}%;
+                        "
+                      ></div>
+                    </div>
+
+                    <span>
+                      ${item.label}
+                    </span>
+
+                  </div>
+                `;
+      }
+    ).join('')
+    }
+
+        </div>
+
+      </section>
+
+
+      <section class="card dashboard-cash">
+
+        <div class="card-head">
+
+          <div>
+            <h2>
+              Caja actual
+            </h2>
+
+            <small>
+              Estado en tiempo real
+            </small>
+          </div>
+
+          <span
+            class="pill ${cashIsOpen
+      ? 'green'
+      : 'yellow'
+    }"
+          >
+            ${cashIsOpen
+      ? 'Abierta'
+      : 'Cerrada'
+    }
+          </span>
+
+        </div>
+
+
+        ${cashIsOpen
+      ? `
+              <div
+                class="
+                  dashboard-summary-list
+                "
+              >
+
+                <div>
+                  <span>
+                    Base inicial
+                  </span>
+
+                  <strong>
+                    ${money(
+        cashOpening
+      )}
+                  </strong>
+                </div>
+
+                <div>
+                  <span>
+                    Ventas efectivo
+                  </span>
+
+                  <strong>
+                    + ${money(
+        cashSales
+      )}
+                  </strong>
+                </div>
+
+                <div>
+                  <span>
+                    Gastos efectivo
+                  </span>
+
+                  <strong
+                    class="negative"
+                  >
+                    - ${money(
+        cashExpenses
+      )}
+                  </strong>
+                </div>
+
+                <div
+                  class="
+                    dashboard-summary-total
+                  "
+                >
+                  <span>
+                    Esperado
+                  </span>
+
+                  <strong>
+                    ${money(
+        cashExpected
+      )}
+                  </strong>
+                </div>
+
+              </div>
+            `
+      : `
+              <div
+                class="
+                  dashboard-empty-state
+                "
+              >
+                <strong>
+                  No hay una caja abierta
+                </strong>
+
+                <p>
+                  Abre una sesión desde
+                  Ventas y caja.
+                </p>
+
+                <button
+                  type="button"
+                  class="btn"
+                  data-view="sales"
+                >
+                  Ir a Ventas y caja
+                </button>
+              </div>
+            `
+    }
+
+      </section>
+
+    </div>
+
+
+    <div class="grid dashboard-main-grid">
+
+      <section class="card">
+
+        <div class="card-head">
+
+          <div>
+            <h2>
+              Ventas del período
+            </h2>
+
+            <small>
+              Últimas operaciones
+            </small>
+          </div>
+
+          <span
+            class="pill"
+          >
+            ${periodSales.length}
+          </span>
+
+        </div>
+
+
+        <div class="list">
+
+          ${recentSales.length
+      ? recentSales.map(
+        sale => `
+                    <div class="row">
+
+                      <div>
+                        <strong>
+                          ${sale.id}
+                        </strong>
+
+                        <small>
+                          ${sale.detail}
+                        </small>
+                      </div>
+
+                      <div
+                        class="
+                          dashboard-row-right
+                        "
+                      >
+                        <strong>
+                          ${money(
+          sale.total
+        )}
+                        </strong>
+
+                        <small>
+                          ${sale.payment}
+                        </small>
+                      </div>
+
+                    </div>
+                  `
+      ).join('')
+      : `
+                  <div class="empty">
+                    No hay ventas en este período.
+                  </div>
+                `
+    }
+
+        </div>
+
+      </section>
+
+
+      <section class="card">
+
+        <div class="card-head">
+
+          <div>
+            <h2>
+              Inventario crítico
+            </h2>
+
+            <small>
+              Estado actual
+            </small>
+          </div>
+
+          <span
+            class="link"
+            data-view="inventory"
+          >
+            Gestionar →
+          </span>
+
+        </div>
+
+
+        <div class="list">
+
+          ${lowStockProducts.length
+      ? lowStockProducts
+        .slice(0, 6)
+        .map(
+          product => `
+                      <div class="row">
+
+                        <div>
+                          <strong>
+                            ${product.name}
+                          </strong>
+
+                          <small>
+                            ${Number(
+            product.stock
+          )}
+                            ${product.unit}
+                          </small>
+                        </div>
+
+                        <span
+                          class="
+                            pill yellow
+                          "
+                        >
+                          Reponer
+                        </span>
+
+                      </div>
+                    `
+        ).join('')
+      : `
+                  <div
+                    class="
+                      dashboard-empty-state
+                      compact
+                    "
+                  >
+                    <strong>
+                      Inventario saludable
+                    </strong>
+
+                    <p>
+                      No hay productos
+                      por debajo del mínimo.
+                    </p>
+                  </div>
+                `
+    }
+
+        </div>
+
+      </section>
+
+    </div>
+
+
+    <div class="grid dashboard-bottom-grid">
+
+      <section class="card">
+
+        <div class="card-head">
+
+          <div>
+            <h2>
+              Control QR
+            </h2>
+
+            <small>
+              Estado actual
+            </small>
+          </div>
+
+          <span
+            class="link"
+            data-view="inventory"
+          >
+            Administrar →
+          </span>
+
+        </div>
+
+
+        <div
+          class="
+            dashboard-qr-summary
+          "
+        >
+
+          <div>
+            <strong>
+              ${productsWithQr}
+            </strong>
+
+            <span>
+              Con QR
+            </span>
+          </div>
+
+          <div>
+            <strong>
+              ${state.products.length -
+    productsWithQr
+    }
+            </strong>
+
+            <span>
+              Sin QR
+            </span>
+          </div>
+
+          <div>
+            <strong>
+              ${state.products.length
+    }
+            </strong>
+
+            <span>
+              Activos
+            </span>
+          </div>
+
+        </div>
+
+      </section>
+
+
+      <section class="card">
+
+        <div class="card-head">
+
+          <div>
+            <h2>
+              Facturación electrónica
+            </h2>
+
+            <small>
+              Integración tributaria
+            </small>
+          </div>
+
+          <span class="pill green">
+            Sandbox
+          </span>
+
+        </div>
+
+
+        <div
+          class="
+            invoice-box
+            dashboard-invoice-box
+          "
+        >
+
+          <h3>
+            Ambiente de pruebas
+          </h3>
+
+          <p>
+            Preparado para integración
+            con proveedor tecnológico
+            y DIAN.
+          </p>
+
+          <button
+            type="button"
+            class="btn secondary"
+            data-view="invoices"
+          >
+            Ver facturación
+          </button>
+
+        </div>
+
+      </section>
+
+    </div>
+  `;
+}
+
+
+/* ============================================================
+   SALES
+============================================================ */
+
+function sales() {
+  setTimeout(loadCashRegisterPanel, 0);
+
+  return `
+    <section class="card" style="margin-bottom:20px">
+      <div class="card-head">
+        <div>
+          <p class="eyebrow">CAJA</p>
+          <h2>Estado de caja</h2>
+        </div>
+      </div>
+
+      <div id="cash-register-panel">
+        <p style="color:var(--muted)">
+          Consultando estado de caja...
+        </p>
+      </div>
+    </section>
+
+    <div class="toolbar">
+      <button class="btn" id="new-sale">+ Nueva venta</button>
+      <input class="input" placeholder="Buscar venta…" />
+
+      <select class="select">
+        <option>Este mes</option>
+        <option>Hoy</option>
+      </select>
+    </div>
+
+    <section class="card">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Venta</th>
+            <th>Detalle</th>
+            <th>Método</th>
+            <th>Total</th>
+            <th>Estado</th>
+            <th>Estado QR</th>
+            <th>QR / Acciones</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          ${state.sales.map(s => `
+            <tr>
+              <td><strong>${s.id}</strong></td>
+              <td>${s.detail}</td>
+              <td>${s.payment}</td>
+              <td><strong>${money(s.total)}</strong></td>
+              <td>
+                <span class="pill ${String(s.status).toLowerCase().includes('fact')
+      ? 'green'
+      : 'yellow'
+    }">
+                  ${s.status}
+                </span>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </section>
+  `;
+}
+
+/* ============================================================
+   INVENTORY
+============================================================ */
+
+function inventory() {
+
+  const adminProducts =
+    state.products.filter(
+      product => product.id != null
+    );
+
+  const adminProductPanel = `
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <p class="eyebrow">
+            ADMINISTRADOR
+          </p>
+
+          <h2>
+            Productos y códigos QR
+          </h2>
+        </div>
+
+        <span class="pill green">
+          Acceso restringido
+        </span>
+      </div>
+
+      <p style="opacity:.72">
+        Crear productos, eliminarlos y generar
+        códigos QR requiere autorización de administrador.
+      </p>
+
+      <div
+        class="form-grid"
+        style="margin-top:18px"
+      >
+        <label class="field full">
+          Producto
+
+          <select id="admin-product-select">
+            ${adminProducts.map(product => `
+              <option value="${product.id}">
+                ${product.name}
+                ${product.sku
+      ? ` · ${product.sku}`
+      : ''}
+              </option>
+            `).join('')}
+          </select>
+        </label>
+
+        <div
+          class="field full"
+          style="
+            display:flex;
+            gap:10px;
+            flex-wrap:wrap;
+          "
+        >
+          <button
+            type="button"
+            class="btn primary"
+            id="admin-generate-qr"
+          >
+            Generar / ver QR
+          </button>
+
+          <button
+            type="button"
+            class="btn secondary"
+            id="admin-delete-product"
+          >
+            Eliminar producto
+          </button>
+
+          <button
+            type="button"
+            class="btn secondary"
+            id="admin-clear-session"
+          >
+            Cerrar acceso admin
+          </button>
+        </div>
+      </div>
+    </section>
+  `;
+
+  const movementRows = state.inventoryMovements.length
+    ? state.inventoryMovements.map(m => `
+        <tr>
+          <td>
+            <strong>${m.product_name}</strong>
+            <small>${m.notes || ''}</small>
+          </td>
+
+          <td>
+            <span class="pill ${Number(m.quantity) < 0 ? 'yellow' : 'green'
+      }">
+              ${m.movement_type}
+            </span>
+          </td>
+
+          <td>
+            <strong>${Number(m.quantity)}</strong>
+          </td>
+
+          <td>${Number(m.previous_stock)}</td>
+
+          <td>
+            <strong>${Number(m.new_stock)}</strong>
+          </td>
+
+          <td>
+            ${m.reference_type && m.reference_id
+        ? `${m.reference_type} #${m.reference_id}`
+        : '—'
+      }
+          </td>
+
+          <td>
+            ${m.created_at
+        ? new Date(m.created_at).toLocaleString('es-CO')
+        : '—'
+      }
+          </td>
+        </tr>
+      `).join('')
+    : `
+        <tr>
+          <td colspan="7" class="empty">
+            Aún no hay movimientos de inventario registrados.
+          </td>
+        </tr>
+      `;
+
+  return `
+    ${adminProductPanel}
+
+    <div class="toolbar inventory-toolbar">
+      <button class="btn" id="new-product">
+        + Agregar producto
+      </button>
+
+      <button class="btn secondary" id="new-adjustment">
+        + Registrar movimiento
+      </button>
+
+      <input
+        class="input"
+        id="inventory-search"
+        type="search"
+        placeholder="Buscar por nombre o SKU…"
+        autocomplete="off"
+      />
+
+      <select
+        class="input"
+        id="inventory-stock-filter"
+      >
+        <option value="all">
+          Todo el stock
+        </option>
+
+        <option value="low">
+          Stock bajo
+        </option>
+
+        <option value="available">
+          Disponible
+        </option>
+      </select>
+
+      <select
+        class="input"
+        id="inventory-qr-filter"
+      >
+        <option value="all">
+          Todos los QR
+        </option>
+
+        <option value="with">
+          Con QR
+        </option>
+
+        <option value="without">
+          Sin QR
+        </option>
+      </select>
+
+      <select
+        class="input"
+        id="inventory-sort"
+      >
+        <option value="name-asc">
+          Nombre A-Z
+        </option>
+
+        <option value="name-desc">
+          Nombre Z-A
+        </option>
+
+        <option value="stock-asc">
+          Stock menor
+        </option>
+
+        <option value="stock-desc">
+          Stock mayor
+        </option>
+
+        <option value="price-asc">
+          Precio menor
+        </option>
+
+        <option value="price-desc">
+          Precio mayor
+        </option>
+      </select>
+    </div>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Inventario actual</h2>
+        <span class="pill">
+          ${state.products.length} productos
+        </span>
+      </div>
+
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Producto</th>
+            <th>Existencia</th>
+            <th>Unidad</th>
+            <th>Precio venta</th>
+            <th>Estado</th>
+            <th>QR / Acciones</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          ${state.products.map(p => `
+            <tr
+              class="inventory-product-row"
+              data-product-search="${(
+      `${p.name || ''} ${p.sku || ''}`
+    ).toLowerCase()}"
+              data-product-name="${(
+      p.name || ''
+    ).toLowerCase()}"
+              data-product-stock="${Number(
+      p.stock || 0
+    )}"
+              data-product-price="${Number(
+      p.price || 0
+    )}"
+              data-stock-status="${Number(p.stock) <= Number(p.minimum_stock ?? 20)
+      ? 'low'
+      : 'available'
+    }"
+              data-qr-status="${p.has_qr
+      ? 'with'
+      : 'without'
+    }"
+            >
+              <td>
+                <strong>${p.name}</strong>
+                <small>${p.sku || 'Sin SKU'}</small>
+              </td>
+
+              <td>${Number(p.stock)}</td>
+
+              <td>${p.unit}</td>
+
+              <td>${money(p.price)}</td>
+
+              <td>
+                <span class="pill ${Number(p.stock) <= Number(p.minimum_stock ?? 20)
+      ? 'yellow'
+      : 'green'
+    }">
+                  ${Number(p.stock) <= Number(p.minimum_stock ?? 20)
+      ? 'Stock bajo'
+      : 'Disponible'
+    }
+                </span>
+              </td>
+
+              <td>
+                <span
+                  class="pill ${p.has_qr ? 'green' : 'yellow'}"
+                >
+                  ${p.has_qr
+      ? 'QR activo'
+      : 'Sin QR'
+    }
+                </span>
+              </td>
+
+              <td>
+                <div
+                  style="
+                    display:flex;
+                    gap:8px;
+                    flex-wrap:wrap;
+                  "
+                >
+                  <button
+                    class="btn secondary product-qr-btn"
+                    data-product-id="${p.id}"
+                    type="button"
+                  >
+                    ${p.has_qr
+      ? 'Ver QR'
+      : 'Generar QR'
+    }
+                  </button>
+
+                  <button
+                    class="btn secondary product-delete-qr-btn"
+                    data-product-id="${p.id}"
+                    type="button"
+                    ${p.has_qr ? '' : 'disabled'}
+                  >
+                    Eliminar QR
+                  </button>
+
+                  <button
+                    class="btn secondary product-delete-btn"
+                    data-product-id="${p.id}"
+                    type="button"
+                  >
+                    Eliminar producto
+                  </button>
+                </div>
+              </td>
+            </tr>
+          `).join('')}
+
+          <tr
+            id="inventory-search-empty"
+            style="display:none"
+          >
+            <td
+              colspan="7"
+              class="empty"
+            >
+              No se encontraron productos.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card inventory-history" style="margin-top:18px">
+      <div class="card-head">
+        <div>
+          <h2>Historial de movimientos</h2>
+
+          <small style="color:var(--muted)">
+            Entradas y salidas registradas en el inventario
+          </small>
+        </div>
+
+        <span class="pill">
+          ${state.inventoryMovements.length} movimientos
+        </span>
+      </div>
+
+      <div class="inventory-history-table">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Producto</th>
+              <th>Tipo</th>
+              <th>Cantidad</th>
+              <th>Stock anterior</th>
+              <th>Stock nuevo</th>
+              <th>Referencia</th>
+              <th>Fecha</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            ${movementRows}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="inventory-history-mobile">
+        ${state.inventoryMovements.length
+      ? state.inventoryMovements.map(m => `
+                    <article class="movement-card">
+                      <div class="movement-card-head">
+                        <div>
+                          <strong>${m.product_name}</strong>
+
+                          <small>
+                            ${m.notes || 'Movimiento de inventario'}
+                          </small>
+                        </div>
+
+                        <span class="pill ${Number(m.quantity) < 0
+          ? 'yellow'
+          : 'green'
+        }">
+                          ${m.movement_type}
+                        </span>
+                      </div>
+
+                      <div class="movement-card-grid">
+
+                        <div>
+                          <small>Cantidad</small>
+                          <strong>
+                            ${Number(m.quantity) > 0 ? '+' : ''}
+                            ${Number(m.quantity)}
+                          </strong>
+                        </div>
+
+                        <div>
+                          <small>Stock anterior</small>
+                          <strong>
+                            ${Number(m.previous_stock)}
+                          </strong>
+                        </div>
+
+                        <div>
+                          <small>Stock nuevo</small>
+                          <strong>
+                            ${Number(m.new_stock)}
+                          </strong>
+                        </div>
+
+                        <div>
+                          <small>Referencia</small>
+                          <strong>
+                            ${m.reference_type &&
+          m.reference_id
+          ? `${m.reference_type} #${m.reference_id}`
+          : '—'
+        }
+                          </strong>
+                        </div>
+
+                      </div>
+
+                      <div class="movement-card-date">
+                        ${m.created_at
+          ? new Date(
+            m.created_at
+          ).toLocaleString('es-CO')
+          : 'Sin fecha'
+        }
+                      </div>
+                    </article>
+                  `).join('')
+      : `
+                    <div class="empty">
+                      Aún no hay movimientos de inventario registrados.
+                    </div>
+                  `
+    }
+      </div>
+    </section>
+  `;
+}
+
+/* ============================================================
+   EXPENSES
+============================================================ */
+
+function expenses() {
+  return `
+    <div class="toolbar">
+      <button class="btn" id="new-expense">+ Registrar gasto</button>
+
+      <select class="select">
+        <option>Todos los gastos</option>
+        <option>Este mes</option>
+      </select>
+    </div>
+
+    <section class="card">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Concepto</th>
+            <th>Proveedor</th>
+            <th>Fecha</th>
+            <th>Valor</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          ${state.expenses.map(e => `
+            <tr>
+              <td><strong>${e.concept}</strong></td>
+              <td>${e.provider}</td>
+              <td>${e.date}</td>
+              <td><strong>${money(e.value)}</strong></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </section>
+  `;
+}
+
+
+/* ============================================================
+   INVOICES
+============================================================ */
+
+function invoices() {
+  const rows = state.testInvoices.length
+    ? state.testInvoices.map(i => `
+        <tr>
+          <td><strong>${i.number}</strong></td>
+          <td>${i.customer}</td>
+          <td>${money(i.total)}</td>
+          <td><span class="pill green">${i.status}</span></td>
+          <td><small>${i.cufe}</small></td>
+        </tr>
+      `).join('')
+    : `
+        <tr>
+          <td colspan="5" class="empty">
+            Aún no hay facturas de prueba.
+          </td>
+        </tr>
+      `;
+
+  return `
+    <div class="grid twocol">
+      <section class="card">
+        <div class="card-head">
+          <h2>Sandbox local</h2>
+          <span class="pill yellow">Solo pruebas</span>
+        </div>
+
+        <p style="color:var(--muted);font-size:13px;line-height:1.6">
+          Simula la emisión sin enviar información a la DIAN.
+          Sirve para validar el flujo antes de conectar Factus.
+        </p>
+
+        <div class="form-grid">
+          <label class="field">
+            Cliente
+            <input id="test-customer" value="Consumidor final" />
+          </label>
+
+          <label class="field">
+            Total
+            <input id="test-total" type="number" value="185000" />
+          </label>
+
+          <button class="btn" id="emit-test">
+            Emitir factura de prueba
+          </button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Flujo de emisión</h2>
+
+        <div class="list">
+          <div class="row">
+            <div>
+              <strong>1. Venta confirmada</strong>
+              <small>Se registra pago e inventario</small>
+            </div>
+            <span class="pill green">Listo</span>
+          </div>
+
+          <div class="row">
+            <div>
+              <strong>2. Crear factura</strong>
+              <small>Adaptador sandbox local</small>
+            </div>
+            <span class="pill green">Listo</span>
+          </div>
+
+          <div class="row">
+            <div>
+              <strong>3. Validación DIAN</strong>
+              <small>Se conectará con Factus después</small>
+            </div>
+            <span class="pill">Pendiente</span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <section class="card" style="margin-top:18px">
+      <div class="card-head">
+        <h2>Facturas de prueba</h2>
+        <span class="link" id="clear-tests">Limpiar historial</span>
+      </div>
+
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Consecutivo</th>
+            <th>Cliente</th>
+            <th>Total</th>
+            <th>Estado</th>
+            <th>CUFE simulado</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </section>
+  `;
+}
+
+
+/* ============================================================
+   SALE MODAL
+============================================================ */
+
+let saleDraft = [];
+
+function openSaleModal() {
+  const realProducts = state.products.filter(p => p.id != null);
+
+  if (!realProducts.length) {
+    toast('La API no tiene productos disponibles.');
+    return;
+  }
+
+  saleDraft = [];
+
+  document.body.insertAdjacentHTML(
+    'beforeend',
+    `
+      <div class="modal-overlay" id="sale-modal">
+        <div class="modal">
+          <div class="card-head">
+            <div>
+              <p class="eyebrow">VENTA</p>
+              <h2>Nueva venta</h2>
+            </div>
+
+            <button class="icon-btn" id="close-sale-modal">×</button>
+          </div>
+
+          <div class="form-grid">
+
+            <label class="field full">
+              Cliente
+              <input
+                id="sale-customer"
+                value="Consumidor final"
+                maxlength="160"
+              />
+            </label>
+
+            <label class="field">
+              Producto
+              <select id="sale-product">
+                ${realProducts.map(p => `
+                  <option value="${p.id}">
+                    ${p.name} · ${money(p.price)} · stock ${p.stock}
+                  </option>
+                `).join('')}
+              </select>
+            </label>
+
+            <label class="field">
+              Cantidad
+              <input
+                id="sale-quantity"
+                type="number"
+                min="1"
+                step="1"
+                value="1"
+              />
+            </label>
+
+            <div class="field full">
+              <button class="btn secondary" id="add-sale-item">
+                + Agregar producto
+              </button>
+            </div>
+
+            <label class="field full">
+              Método de pago
+              <select id="sale-payment">
+                <option value="efectivo">Efectivo</option>
+                <option value="tarjeta">Tarjeta</option>
+                <option value="transferencia">Transferencia</option>
+                <option value="qr">QR</option>
+              </select>
+            </label>
+
+          </div>
+
+          <div id="sale-cart"></div>
+
+          <div class="modal-actions">
+            <button class="btn secondary" id="cancel-sale">
+              Cancelar
+            </button>
+
+            <button class="btn" id="confirm-sale">
+              Confirmar venta
+            </button>
+          </div>
+        </div>
+      </div>
+    `
+  );
+
+  document.querySelector('#close-sale-modal').onclick = closeSaleModal;
+  document.querySelector('#cancel-sale').onclick = closeSaleModal;
+  document.querySelector('#add-sale-item').onclick = addSaleItem;
+  document.querySelector('#confirm-sale').onclick = submitSale;
+
+  document.querySelector('#sale-modal').addEventListener('click', event => {
+    if (event.target.id === 'sale-modal') {
+      closeSaleModal();
+    }
+  });
+
+  refreshSaleCart();
+}
+
+
+function closeSaleModal() {
+  document.querySelector('#sale-modal')?.remove();
+  saleDraft = [];
+}
+
+
+function addSaleItem() {
+  const productId = Number(
+    document.querySelector('#sale-product').value
+  );
+
+  const quantity = Number(
+    document.querySelector('#sale-quantity').value
+  );
+
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    toast('Ingresa una cantidad válida.');
+    return;
+  }
+
+  const product = state.products.find(
+    p => Number(p.id) === productId
+  );
+
+  if (!product) {
+    toast('Producto no encontrado.');
+    return;
+  }
+
+  const existing = saleDraft.find(
+    item => item.product_id === productId
+  );
+
+  const currentQuantity = existing
+    ? existing.quantity
+    : 0;
+
+  if (currentQuantity + quantity > Number(product.stock)) {
+    toast(`Stock insuficiente para ${product.name}.`);
+    return;
+  }
+
+  if (existing) {
+    existing.quantity += quantity;
+  } else {
+    saleDraft.push({
+      product_id: productId,
+      quantity,
+      name: product.name,
+      unit_price: Number(product.price),
+      stock: Number(product.stock)
+    });
+  }
+
+  document.querySelector('#sale-quantity').value = 1;
+
+  refreshSaleCart();
+}
+
+
+function removeSaleItem(productId) {
+  saleDraft = saleDraft.filter(
+    item => item.product_id !== productId
+  );
+
+  refreshSaleCart();
+}
+
+
+function refreshSaleCart() {
+  const container = document.querySelector('#sale-cart');
+
+  if (!container) return;
+
+  if (!saleDraft.length) {
+    container.innerHTML = `
+      <div class="empty sale-empty">
+        Agrega al menos un producto.
+      </div>
+    `;
+    return;
+  }
+
+  const total = saleDraft.reduce(
+    (acc, item) =>
+      acc + item.quantity * item.unit_price,
+    0
+  );
+
+  container.innerHTML = `
+    <div class="sale-cart">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Producto</th>
+            <th>Cant.</th>
+            <th>Precio</th>
+            <th>Subtotal</th>
+            <th></th>
+          </tr>
+        </thead>
+
+        <tbody>
+          ${saleDraft.map(item => `
+            <tr>
+              <td>${item.name}</td>
+              <td>${item.quantity}</td>
+              <td>${money(item.unit_price)}</td>
+              <td>
+                <strong>
+                  ${money(item.quantity * item.unit_price)}
+                </strong>
+              </td>
+              <td>
+                <button
+                  class="remove-item"
+                  data-product-id="${item.product_id}"
+                >
+                  ×
+                </button>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+
+      <div class="sale-total">
+        <span>Total</span>
+        <strong>${money(total)}</strong>
+      </div>
+    </div>
+  `;
+
+  container
+    .querySelectorAll('.remove-item')
+    .forEach(button => {
+      button.onclick = () =>
+        removeSaleItem(
+          Number(button.dataset.productId)
+        );
+    });
+}
+
+
+async function submitSale() {
+  if (!saleDraft.length) {
+    toast('Agrega productos a la venta.');
+    return;
+  }
+
+  const button = document.querySelector('#confirm-sale');
+
+  button.disabled = true;
+  button.textContent = 'Registrando...';
+
+  const payload = {
+    customer_name:
+      document.querySelector('#sale-customer').value.trim()
+      || 'Consumidor final',
+
+    payment_method:
+      document.querySelector('#sale-payment').value,
+
+    items: saleDraft.map(item => ({
+      product_id: item.product_id,
+      quantity: item.quantity
+    }))
+  };
+
+  try {
+    const response = await fetch(
+      `${API_BASE}/api/sales`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      }
+    );
+
+    if (!response.ok) {
+      let detail = 'No fue posible registrar la venta.';
+
+      try {
+        const error = await response.json();
+        detail = error.detail || detail;
+      } catch { }
+
+      throw new Error(detail);
+    }
+
+    const result = await response.json();
+
+    closeSaleModal();
+
+    await syncFromApi(false);
+
+    render('sales');
+
+    toast(
+      `Venta ${result.number} registrada por ${money(result.total)}`
+    );
+
+  } catch (error) {
+    toast(error.message);
+
+    button.disabled = false;
+    button.textContent = 'Confirmar venta';
+  }
+}
+
+
+
+/* ============================================================
+   PRODUCT MODAL
+============================================================ */
+
+function openProductModal() {
+  document.body.insertAdjacentHTML(
+    'beforeend',
+    `
+      <div class="modal-overlay" id="product-modal">
+        <div class="modal">
+          <div class="card-head">
+            <div>
+              <p class="eyebrow">INVENTARIO</p>
+              <h2>Agregar producto</h2>
+            </div>
+
+            <button class="icon-btn" id="close-product-modal">×</button>
+          </div>
+
+          <div class="form-grid">
+            <label class="field full">
+              Nombre
+              <input id="product-name" maxlength="160" placeholder="Ej. Whisky Old Parr 750ml" />
+            </label>
+
+            <label class="field">
+              SKU
+              <input id="product-sku" maxlength="60" placeholder="Ej. WOP-001" />
+            </label>
+
+            <label class="field">
+              Unidad
+              <select id="product-unit">
+                <option value="unidad">Unidad</option>
+                <option value="botella">Botella</option>
+                <option value="caja">Caja</option>
+                <option value="paquete">Paquete</option>
+              </select>
+            </label>
+
+            <label class="field">
+              Precio de venta
+              <input id="product-price" type="number" min="0" step="100" value="0" />
+            </label>
+
+            <label class="field">
+              Stock inicial
+              <input id="product-stock" type="number" min="0" step="1" value="0" />
+            </label>
+
+            <label class="field full">
+              Stock mínimo
+              <input id="product-minimum-stock" type="number" min="0" step="1" value="0" />
+            </label>
+          </div>
+
+          <div class="modal-actions">
+            <button class="btn secondary" id="cancel-product">Cancelar</button>
+            <button class="btn" id="save-product">Guardar producto</button>
+          </div>
+        </div>
+      </div>
+    `
+  );
+
+  document.querySelector('#close-product-modal').onclick = closeProductModal;
+  document.querySelector('#cancel-product').onclick = closeProductModal;
+  document.querySelector('#save-product').onclick = submitProduct;
+
+  document.querySelector('#product-modal').addEventListener('click', event => {
+    if (event.target.id === 'product-modal') {
+      closeProductModal();
+    }
+  });
+
+  document.querySelector('#product-name').focus();
+}
+
+function closeProductModal() {
+  document.querySelector('#product-modal')?.remove();
+}
+
+async function submitProduct() {
+  const name = document.querySelector('#product-name').value.trim();
+  const sku = document.querySelector('#product-sku').value.trim();
+  const unit = document.querySelector('#product-unit').value;
+  const price = Number(document.querySelector('#product-price').value);
+  const stock = Number(document.querySelector('#product-stock').value);
+  const minimumStock = Number(
+    document.querySelector('#product-minimum-stock').value
+  );
+
+  if (name.length < 2) {
+    toast('Ingresa un nombre válido.');
+    return;
+  }
+
+  if (price < 0 || stock < 0 || minimumStock < 0) {
+    toast('Precio y existencias no pueden ser negativos.');
+    return;
+  }
+
+  const button = document.querySelector('#save-product');
+
+  button.disabled = true;
+  button.textContent = 'Guardando...';
+
+  const payload = {
+    name,
+    sku: sku || null,
+    unit,
+    price,
+    stock,
+    minimum_stock: minimumStock
+  };
+
+  try {
+    const response = await adminFetch(`${API_BASE}/api/products`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      let detail = 'No fue posible crear el producto.';
+
+      try {
+        const error = await response.json();
+        detail = error.detail || detail;
+      } catch { }
+
+      throw new Error(
+        typeof detail === 'string'
+          ? detail
+          : 'No fue posible crear el producto.'
+      );
+    }
+
+    const product = await response.json();
+
+    closeProductModal();
+
+    await syncFromApi(false);
+
+    render('inventory');
+
+    toast(`Producto ${product.name} creado correctamente.`);
+  } catch (error) {
+    toast(error.message);
+
+    button.disabled = false;
+    button.textContent = 'Guardar producto';
+  }
+}
+
+
+/* ============================================================
+   INVENTORY ADJUSTMENT MODAL
+============================================================ */
+
+function openInventoryAdjustmentModal() {
+  const realProducts = state.products.filter(p => p.id != null);
+
+  if (!realProducts.length) {
+    toast('No hay productos disponibles.');
+    return;
+  }
+
+  document.body.insertAdjacentHTML(
+    'beforeend',
+    `
+      <div class="modal-overlay" id="adjustment-modal">
+        <div class="modal">
+
+          <div class="card-head">
+            <div>
+              <p class="eyebrow">INVENTARIO</p>
+              <h2>Registrar movimiento</h2>
+            </div>
+
+            <button class="icon-btn" id="close-adjustment-modal">×</button>
+          </div>
+
+          <div class="form-grid">
+
+            <label class="field full">
+              Producto
+              <select id="adjustment-product">
+                ${realProducts.map(p => `
+                  <option value="${p.id}">
+                    ${p.name} · stock actual ${Number(p.stock)}
+                  </option>
+                `).join('')}
+              </select>
+            </label>
+
+            <label class="field">
+              Tipo de movimiento
+              <select id="adjustment-type">
+                <option value="PURCHASE">Compra / reposición</option>
+                <option value="ADJUSTMENT_IN">Ajuste positivo</option>
+                <option value="ADJUSTMENT_OUT">Ajuste negativo</option>
+                <option value="LOSS">Pérdida / merma</option>
+              </select>
+            </label>
+
+            <label class="field">
+              Cantidad
+              <input
+                id="adjustment-quantity"
+                type="number"
+                min="0.01"
+                step="0.01"
+                value="1"
+              />
+            </label>
+
+
+            <label class="field full">
+              Notas
+              <input
+                id="adjustment-notes"
+                maxlength="250"
+                placeholder="Ej. Compra proveedor Distribuciones La Patrona"
+              />
+            </label>
+
+          </div>
+
+          <div class="modal-actions">
+            <button class="btn secondary" id="cancel-adjustment">
+              Cancelar
+            </button>
+
+            <button class="btn" id="save-adjustment">
+              Registrar movimiento
+            </button>
+          </div>
+
+        </div>
+      </div>
+    `
+  );
+
+  document.querySelector('#close-adjustment-modal').onclick =
+    closeInventoryAdjustmentModal;
+
+  document.querySelector('#cancel-adjustment').onclick =
+    closeInventoryAdjustmentModal;
+
+  document.querySelector('#save-adjustment').onclick =
+    submitInventoryAdjustment;
+
+  document.querySelector('#adjustment-modal').addEventListener(
+    'click',
+    event => {
+      if (event.target.id === 'adjustment-modal') {
+        closeInventoryAdjustmentModal();
+      }
+    }
+  );
+}
+
+
+function closeInventoryAdjustmentModal() {
+  document.querySelector('#adjustment-modal')?.remove();
+}
+
+
+async function submitInventoryAdjustment() {
+  const productId = Number(
+    document.querySelector('#adjustment-product').value
+  );
+
+  const movementType =
+    document.querySelector('#adjustment-type').value;
+
+  const quantity = Number(
+    document.querySelector('#adjustment-quantity').value
+  );
+
+  const notes =
+    document.querySelector('#adjustment-notes').value.trim();
+
+  if (!productId) {
+    toast('Selecciona un producto.');
+    return;
+  }
+
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    toast('Ingresa una cantidad válida.');
+    return;
+  }
+
+  const button = document.querySelector('#save-adjustment');
+
+  button.disabled = true;
+  button.textContent = 'Registrando...';
+
+  const payload = {
+    product_id: productId,
+    movement_type: movementType,
+    quantity,
+    notes: notes || null
+  };
+
+  try {
+    const response = await fetch(
+      `${API_BASE}/api/inventory/adjustments`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      }
+    );
+
+    if (!response.ok) {
+      let detail = 'No fue posible registrar el movimiento.';
+
+      try {
+        const error = await response.json();
+        detail = error.detail || detail;
+      } catch { }
+
+      throw new Error(
+        typeof detail === 'string'
+          ? detail
+          : 'No fue posible registrar el movimiento.'
+      );
+    }
+
+    const result = await response.json();
+
+    closeInventoryAdjustmentModal();
+
+    await syncFromApi(false);
+
+    render('inventory');
+
+    const sign = Number(result.quantity) > 0 ? '+' : '';
+
+    toast(
+      `${result.product_name}: ${sign}${Number(result.quantity)} unidades`
+    );
+
+  } catch (error) {
+    toast(error.message);
+
+    button.disabled = false;
+    button.textContent = 'Registrar movimiento';
+  }
+}
+
+
+/* ============================================================
+   EXPENSE MODAL
+============================================================ */
+
+function openExpenseModal() {
+  document.body.insertAdjacentHTML(
+    'beforeend',
+    `
+      <div class="modal-overlay" id="expense-modal">
+        <div class="modal">
+
+          <div class="card-head">
+            <div>
+              <p class="eyebrow">GASTOS</p>
+              <h2>Registrar gasto</h2>
+            </div>
+
+            <button class="icon-btn" id="close-expense-modal">×</button>
+          </div>
+
+          <div class="form-grid">
+
+            <label class="field full">
+              Concepto
+              <input
+                id="expense-concept"
+                maxlength="160"
+                placeholder="Ej. Compra de hielo"
+              />
+            </label>
+
+            <label class="field full">
+              Proveedor
+              <input
+                id="expense-provider"
+                maxlength="160"
+                placeholder="Ej. Distribuciones La Patrona"
+              />
+            </label>
+
+            <label class="field full">
+              Valor
+              <input
+                id="expense-value"
+                type="number"
+                min="1"
+                step="100"
+                value="0"
+              />
+            </label>
+
+            <label class="field full">
+              Método de pago
+
+              <select id="expense-payment-method">
+                <option value="efectivo">Efectivo</option>
+                <option value="transferencia">Transferencia</option>
+                <option value="tarjeta">Tarjeta</option>
+              </select>
+            </label>
+
+            <label class="field full">
+              Notas
+              <input
+                id="expense-notes"
+                maxlength="300"
+                placeholder="Información adicional"
+              />
+            </label>
+
+          </div>
+
+          <div class="modal-actions">
+            <button class="btn secondary" id="cancel-expense">
+              Cancelar
+            </button>
+
+            <button class="btn" id="save-expense">
+              Registrar gasto
+            </button>
+          </div>
+
+        </div>
+      </div>
+    `
+  );
+
+  document.querySelector('#close-expense-modal').onclick =
+    closeExpenseModal;
+
+  document.querySelector('#cancel-expense').onclick =
+    closeExpenseModal;
+
+  document.querySelector('#save-expense').onclick =
+    submitExpense;
+
+  document.querySelector('#expense-modal').addEventListener(
+    'click',
+    event => {
+      if (event.target.id === 'expense-modal') {
+        closeExpenseModal();
+      }
+    }
+  );
+
+  document.querySelector('#expense-concept').focus();
+}
+
+
+function closeExpenseModal() {
+  document.querySelector('#expense-modal')?.remove();
+}
+
+
+async function submitExpense() {
+  const concept =
+    document.querySelector('#expense-concept').value.trim();
+
+  const provider =
+    document.querySelector('#expense-provider').value.trim();
+
+  const value = Number(
+    document.querySelector('#expense-value').value
+  );
+
+  const paymentMethod =
+    document.querySelector('#expense-payment-method').value;
+
+  const notes =
+    document.querySelector('#expense-notes').value.trim();
+
+  if (concept.length < 2) {
+    toast('Ingresa un concepto válido.');
+    return;
+  }
+
+  if (!Number.isFinite(value) || value <= 0) {
+    toast('Ingresa un valor válido.');
+    return;
+  }
+
+  const button =
+    document.querySelector('#save-expense');
+
+  button.disabled = true;
+  button.textContent = 'Registrando...';
+
+  const payload = {
+    concept,
+    provider: provider || null,
+    value,
+    payment_method: paymentMethod,
+    notes: notes || null
+  };
+
+  try {
+    const response = await fetch(
+      `${API_BASE}/api/expenses`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      }
+    );
+
+    if (!response.ok) {
+      let detail =
+        'No fue posible registrar el gasto.';
+
+      try {
+        const error = await response.json();
+        detail = error.detail || detail;
+      } catch { }
+
+      throw new Error(
+        typeof detail === 'string'
+          ? detail
+          : 'No fue posible registrar el gasto.'
+      );
+    }
+
+    const expense = await response.json();
+
+    closeExpenseModal();
+
+    await syncFromApi(false);
+
+    render('expenses');
+
+    toast(
+      `Gasto registrado por ${money(expense.value)}`
+    );
+
+  } catch (error) {
+    toast(error.message);
+
+    button.disabled = false;
+    button.textContent = 'Registrar gasto';
+  }
+}
+
+
+/* ============================================================
+   CASH REGISTER
+============================================================ */
+
+async function loadCashRegisterPanel() {
+  const panel = document.querySelector('#cash-register-panel');
+
+  if (!panel) {
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      `${API_BASE}/api/cash-register/current`
+    );
+
+    if (!response.ok) {
+      throw new Error('No fue posible consultar la caja.');
+    }
+
+    const data = await response.json();
+
+    if (data.status !== 'OPEN' || !data.session) {
+      panel.innerHTML = `
+        <div style="
+          display:flex;
+          justify-content:space-between;
+          align-items:center;
+          gap:20px;
+          flex-wrap:wrap;
+        ">
+          <div>
+            <span class="pill yellow">CAJA CERRADA</span>
+
+            <p style="color:var(--muted);margin-top:10px">
+              No hay una sesión de caja abierta.
+            </p>
+          </div>
+
+          <button
+            class="btn"
+            onclick="openCashRegisterModal()"
+          >
+            Abrir caja
+          </button>
+        </div>
+      `;
+
+      return;
+    }
+
+    const session = data.session;
+
+    panel.innerHTML = `
+      <div style="
+        display:flex;
+        justify-content:space-between;
+        align-items:flex-start;
+        gap:20px;
+        flex-wrap:wrap;
+        margin-bottom:20px;
+      ">
+        <div>
+          <span class="pill green">CAJA ABIERTA</span>
+
+          <p style="color:var(--muted);margin-top:10px">
+            Apertura:
+            ${new Date(session.opened_at).toLocaleString('es-CO')}
+          </p>
+        </div>
+
+        <button
+          class="btn secondary"
+          onclick="openCashRegisterCloseModal()"
+        >
+          Cerrar caja
+        </button>
+      </div>
+
+      <div
+        class="grid"
+        style="
+          grid-template-columns:
+          repeat(auto-fit,minmax(160px,1fr));
+          gap:12px;
+        "
+      >
+        <div class="card">
+          <small>Monto inicial</small>
+          <h2>${money(Number(session.opening_amount || 0))}</h2>
+        </div>
+
+        <div class="card">
+          <small>Ventas en efectivo</small>
+          <h2>${money(Number(session.cash_sales_total || 0))}</h2>
+        </div>
+
+        <div class="card">
+          <small>Gastos</small>
+          <h2>${money(Number(session.expenses_total || 0))}</h2>
+        </div>
+
+        <div class="card">
+          <small>Efectivo esperado</small>
+          <h2>${money(Number(session.expected_amount || 0))}</h2>
+        </div>
+      </div>
+    `;
+  }
+  catch (error) {
+    panel.innerHTML = `
+      <p style="color:var(--muted)">
+        ${error.message}
+      </p>
+    `;
+  }
+}
+
+
+function closeCashModal(selector) {
+  document.querySelector(selector)?.remove();
+}
+
+
+function openCashRegisterModal() {
+  document.body.insertAdjacentHTML(
+    'beforeend',
+    `
+      <div
+        class="modal-overlay"
+        id="cash-open-modal"
+      >
+        <div class="modal">
+
+          <div class="card-head">
+            <div>
+              <p class="eyebrow">CAJA</p>
+              <h2>Abrir caja</h2>
+            </div>
+
+            <button
+              class="icon-btn"
+              onclick="closeCashModal('#cash-open-modal')"
+            >
+              ×
+            </button>
+          </div>
+
+          <div class="form-grid">
+            <label class="field full">
+              Monto inicial
+
+              <input
+                id="cash-opening-amount"
+                type="number"
+                min="0"
+                step="1000"
+                value="0"
+              />
+            </label>
+          </div>
+
+          <div class="modal-actions">
+            <button
+              class="btn secondary"
+              onclick="closeCashModal('#cash-open-modal')"
+            >
+              Cancelar
+            </button>
+
+            <button
+              class="btn"
+              id="confirm-cash-open"
+              onclick="submitCashRegisterOpen()"
+            >
+              Abrir caja
+            </button>
+          </div>
+
+        </div>
+      </div>
+    `
+  );
+
+  document
+    .querySelector('#cash-opening-amount')
+    ?.focus();
+}
+
+
+async function submitCashRegisterOpen() {
+  const amount = Number(
+    document.querySelector('#cash-opening-amount')?.value
+  );
+
+  if (!Number.isFinite(amount) || amount < 0) {
+    toast('Ingresa un monto inicial válido.');
+    return;
+  }
+
+  const button =
+    document.querySelector('#confirm-cash-open');
+
+  button.disabled = true;
+  button.textContent = 'Abriendo...';
+
+  try {
+    const response = await fetch(
+      `${API_BASE}/api/cash-register/open`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          opening_amount: amount
+        })
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        data.detail ||
+        'No fue posible abrir la caja.'
+      );
+    }
+
+    closeCashModal('#cash-open-modal');
+
+    await loadCashRegisterPanel();
+
+    toast(`Caja abierta con ${money(amount)}`);
+  }
+  catch (error) {
+    toast(error.message);
+
+    button.disabled = false;
+    button.textContent = 'Abrir caja';
+  }
+}
+
+
+async function openCashRegisterCloseModal() {
+  try {
+    const response = await fetch(
+      `${API_BASE}/api/cash-register/current`
+    );
+
+    const data = await response.json();
+
+    if (
+      !response.ok ||
+      data.status !== 'OPEN' ||
+      !data.session
+    ) {
+      throw new Error('No hay una caja abierta.');
+    }
+
+    const session = data.session;
+
+    document.body.insertAdjacentHTML(
+      'beforeend',
+      `
+        <div
+          class="modal-overlay"
+          id="cash-close-modal"
+        >
+          <div class="modal">
+
+            <div class="card-head">
+              <div>
+                <p class="eyebrow">CIERRE DE CAJA</p>
+                <h2>Cerrar caja</h2>
+              </div>
+
+              <button
+                class="icon-btn"
+                onclick="closeCashModal('#cash-close-modal')"
+              >
+                ×
+              </button>
+            </div>
+
+            <div class="form-grid">
+
+              <div class="field full">
+                <small>Efectivo esperado</small>
+
+                <h2>
+                  ${money(Number(session.expected_amount || 0))}
+                </h2>
+              </div>
+
+              <label class="field full">
+                Efectivo contado
+
+                <input
+                  id="cash-closing-amount"
+                  type="number"
+                  min="0"
+                  step="1000"
+                  placeholder="Ingresa el conteo real"
+                />
+              </label>
+
+            </div>
+
+            <div class="modal-actions">
+
+              <button
+                class="btn secondary"
+                onclick="closeCashModal('#cash-close-modal')"
+              >
+                Cancelar
+              </button>
+
+              <button
+                class="btn"
+                id="confirm-cash-close"
+                onclick="submitCashRegisterClose()"
+              >
+                Cerrar caja
+              </button>
+
+            </div>
+
+          </div>
+        </div>
+      `
+    );
+
+    document
+      .querySelector('#cash-closing-amount')
+      ?.focus();
+  }
+  catch (error) {
+    toast(error.message);
+  }
+}
+
+
+async function submitCashRegisterClose() {
+  const amount = Number(
+    document.querySelector('#cash-closing-amount')?.value
+  );
+
+  if (!Number.isFinite(amount) || amount < 0) {
+    toast('Ingresa el efectivo contado.');
+    return;
+  }
+
+  const button =
+    document.querySelector('#confirm-cash-close');
+
+  button.disabled = true;
+  button.textContent = 'Cerrando...';
+
+  try {
+    const response = await fetch(
+      `${API_BASE}/api/cash-register/close`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          closing_amount: amount
+        })
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        data.detail ||
+        'No fue posible cerrar la caja.'
+      );
+    }
+
+    closeCashModal('#cash-close-modal');
+
+    await loadCashRegisterPanel();
+
+    const difference =
+      Number(data.difference || 0);
+
+    if (difference === 0) {
+      toast('Caja cerrada. Diferencia: $0');
+    }
+    else if (difference > 0) {
+      toast(
+        `Caja cerrada. Sobrante: ${money(difference)}`
+      );
+    }
+    else {
+      toast(
+        `Caja cerrada. Faltante: ${money(Math.abs(difference))}`
+      );
+    }
+  }
+  catch (error) {
+    toast(error.message);
+
+    button.disabled = false;
+    button.textContent = 'Cerrar caja';
+  }
+}
+
+/* ============================================================
+   VIEWS
+============================================================ */
+
+const views = {
+  dashboard: {
+    title: 'Resumen de hoy',
+    render: dashboard
+  },
+  sales: {
+    title: 'Ventas y caja',
+    render: sales
+  },
+  inventory: {
+    title: 'Inventario',
+    render: inventory
+  },
+  expenses: {
+    title: 'Gastos',
+    render: expenses
+  },
+  invoices: {
+    title: 'Facturación electrónica',
+    render: invoices
+  }
+};
+
+let currentView =
+  sessionStorage.getItem('lp-current-view') ||
+  'dashboard';
+
+let dashboardPeriod =
+  sessionStorage.getItem(
+    'gato-dashboard-period'
+  ) || 'day';
+
+
+
+
+
+function filterInventoryProducts() {
+  const searchInput =
+    document.querySelector(
+      '#inventory-search'
+    );
+
+  const stockFilter =
+    document.querySelector(
+      '#inventory-stock-filter'
+    );
+
+  const qrFilter =
+    document.querySelector(
+      '#inventory-qr-filter'
+    );
+
+  const sortSelect =
+    document.querySelector(
+      '#inventory-sort'
+    );
+
+  const query =
+    searchInput?.value
+      .trim()
+      .toLowerCase()
+    || '';
+
+  const stockValue =
+    stockFilter?.value
+    || 'all';
+
+  const qrValue =
+    qrFilter?.value
+    || 'all';
+
+  const sortValue =
+    sortSelect?.value
+    || 'name-asc';
+
+  const tbody =
+    document.querySelector(
+      '.inventory-product-row'
+    )?.parentElement;
+
+  const rows = [
+    ...document.querySelectorAll(
+      '.inventory-product-row'
+    )
+  ];
+
+  let visible = 0;
+
+  rows.forEach(row => {
+    const searchable =
+      row.dataset.productSearch || '';
+
+    const stockStatus =
+      row.dataset.stockStatus || '';
+
+    const qrStatus =
+      row.dataset.qrStatus || '';
+
+    const matchesSearch =
+      !query ||
+      searchable.includes(query);
+
+    const matchesStock =
+      stockValue === 'all' ||
+      stockStatus === stockValue;
+
+    const matchesQr =
+      qrValue === 'all' ||
+      qrStatus === qrValue;
+
+    const matches =
+      matchesSearch &&
+      matchesStock &&
+      matchesQr;
+
+    row.style.display =
+      matches
+        ? ''
+        : 'none';
+
+    if (matches) {
+      visible += 1;
+    }
+  });
+
+  rows.sort((a, b) => {
+    const nameA =
+      a.dataset.productName || '';
+
+    const nameB =
+      b.dataset.productName || '';
+
+    const stockA =
+      Number(
+        a.dataset.productStock || 0
+      );
+
+    const stockB =
+      Number(
+        b.dataset.productStock || 0
+      );
+
+    const priceA =
+      Number(
+        a.dataset.productPrice || 0
+      );
+
+    const priceB =
+      Number(
+        b.dataset.productPrice || 0
+      );
+
+    switch (sortValue) {
+
+      case 'name-desc':
+        return nameB.localeCompare(
+          nameA,
+          'es'
+        );
+
+      case 'stock-asc':
+        return stockA - stockB;
+
+      case 'stock-desc':
+        return stockB - stockA;
+
+      case 'price-asc':
+        return priceA - priceB;
+
+      case 'price-desc':
+        return priceB - priceA;
+
+      case 'name-asc':
+      default:
+        return nameA.localeCompare(
+          nameB,
+          'es'
+        );
+    }
+  });
+
+  if (tbody) {
+    rows.forEach(row => {
+      tbody.appendChild(row);
+    });
+
+    const empty =
+      document.querySelector(
+        '#inventory-search-empty'
+      );
+
+    if (empty) {
+      tbody.appendChild(empty);
+    }
+  }
+
+  const empty =
+    document.querySelector(
+      '#inventory-search-empty'
+    );
+
+  if (empty) {
+    empty.style.display =
+      visible === 0
+        ? ''
+        : 'none';
+  }
+}
+
+
+function render(view = currentView || 'dashboard') {
+  currentView = view;
+
+  sessionStorage.setItem(
+    'lp-current-view',
+    currentView
+  );
+
+  document.querySelector('#view-title').textContent =
+    views[view].title;
+
+  app.innerHTML = views[view].render();
+
+  document.querySelectorAll('[data-view]').forEach(element => {
+    element.onclick = () =>
+      render(element.dataset.view);
+  });
+
+
+  document
+    .querySelector(
+      '#dashboard-period'
+    )
+    ?.addEventListener(
+      'change',
+      event => {
+
+        dashboardPeriod =
+          event.target.value;
+
+        sessionStorage.setItem(
+          'gato-dashboard-period',
+          dashboardPeriod
+        );
+
+        render('dashboard');
+      }
+    );
+
+  document
+    .querySelector('#new-sale')
+    ?.addEventListener(
+      'click',
+      openSaleModal
+    );
+
+  document
+    .querySelector('#admin-generate-qr')
+    ?.addEventListener(
+      'click',
+      generateSelectedProductQr
+    );
+
+  document
+    .querySelector('#admin-delete-product')
+    ?.addEventListener(
+      'click',
+      deleteSelectedProduct
+    );
+
+  document
+    .querySelector('#admin-clear-session')
+    ?.addEventListener(
+      'click',
+      () => {
+        sessionStorage.removeItem(
+          'lp-admin-key'
+        );
+
+        toast(
+          'Sesión administrativa cerrada.'
+        );
+      }
+    );
+
+
+  document
+    .querySelectorAll(
+      '.product-qr-btn'
+    )
+    .forEach(button => {
+      button.addEventListener(
+        'click',
+        event => {
+          event.preventDefault();
+          event.stopPropagation();
+
+          currentView = 'inventory';
+
+          generateProductQr(
+            button.dataset.productId
+          );
+        }
+      );
+    });
+
+  document
+    .querySelectorAll(
+      '.product-delete-qr-btn'
+    )
+    .forEach(button => {
+      button.addEventListener(
+        'click',
+        event => {
+          event.preventDefault();
+          event.stopPropagation();
+
+          currentView = 'inventory';
+
+          deleteProductQr(
+            button.dataset.productId
+          );
+        }
+      );
+    });
+
+  document
+    .querySelectorAll(
+      '.product-delete-btn'
+    )
+    .forEach(button => {
+      button.addEventListener(
+        'click',
+        event => {
+          event.preventDefault();
+          event.stopPropagation();
+
+          currentView = 'inventory';
+
+          deleteProductById(
+            button.dataset.productId
+          );
+        }
+      );
+    });
+
+
+
+  document
+    .querySelector('#inventory-search')
+    ?.addEventListener(
+      'input',
+      filterInventoryProducts
+    );
+
+
+  document
+    .querySelector(
+      '#inventory-stock-filter'
+    )
+    ?.addEventListener(
+      'change',
+      filterInventoryProducts
+    );
+
+  document
+    .querySelector(
+      '#inventory-qr-filter'
+    )
+    ?.addEventListener(
+      'change',
+      filterInventoryProducts
+    );
+
+
+  document
+    .querySelector(
+      '#inventory-sort'
+    )
+    ?.addEventListener(
+      'change',
+      filterInventoryProducts
+    );
+
+
+  if (
+    document.querySelector(
+      '#inventory-search'
+    )
+  ) {
+    filterInventoryProducts();
+  }
+
+  document
+    .querySelector('#new-product')
+    ?.addEventListener(
+      'click',
+      openProductModal
+    );
+
+  document
+    .querySelector('#new-adjustment')
+    ?.addEventListener(
+      'click',
+      openInventoryAdjustmentModal
+    );
+
+  document
+    .querySelector('#new-expense')
+    ?.addEventListener(
+      'click',
+      openExpenseModal
+    );
+
+  document
+    .querySelector('#emit-test')
+    ?.addEventListener(
+      'click',
+      () => {
+        const number =
+          state.testInvoices.length + 1;
+
+        const invoice = {
+          number:
+            'PATRONA-TEST-' +
+            String(number).padStart(4, '0'),
+
+          customer:
+            document.querySelector('#test-customer').value
+            || 'Consumidor final',
+
+          total:
+            Number(
+              document.querySelector('#test-total').value
+            ) || 0,
+
+          status:
+            'Aceptada (prueba)',
+
+          cufe:
+            'SIM-' +
+            crypto.randomUUID()
+              .replaceAll('-', '')
+              .slice(0, 18)
+              .toUpperCase()
+        };
+
+        state.testInvoices.unshift(invoice);
+
+        localStorage.setItem(
+          'gato-test-invoices',
+          JSON.stringify(state.testInvoices)
+        );
+
+        toast(
+          'Factura de prueba generada.'
+        );
+
+        render('invoices');
+      }
+    );
+
+  document
+    .querySelector('#clear-tests')
+    ?.addEventListener(
+      'click',
+      () => {
+        state.testInvoices = [];
+
+        localStorage.removeItem(
+          'gato-test-invoices'
+        );
+
+        toast(
+          'Historial de pruebas limpiado.'
+        );
+
+        render('invoices');
+      }
+    );
+}
+
+
+/* ============================================================
+   API SYNC
+============================================================ */
+
+async function syncFromApi(showToast = true) {
+  try {
+    const [
+      products,
+      sales,
+      expenses,
+      inventoryMovements,
+      cashRegister
+    ] = await Promise.all([
+      fetch(
+        `${API_BASE}/api/products`
+      ).then(response =>
+        response.ok
+          ? response.json()
+          : Promise.reject()
+      ),
+
+      fetch(
+        `${API_BASE}/api/sales`
+      ).then(response =>
+        response.ok
+          ? response.json()
+          : Promise.reject()
+      ),
+
+      fetch(
+        `${API_BASE}/api/expenses`
+      ).then(response =>
+        response.ok
+          ? response.json()
+          : Promise.reject()
+      ),
+
+      fetch(
+        `${API_BASE}/api/inventory/movements`
+      ).then(response =>
+        response.ok
+          ? response.json()
+          : Promise.reject()
+      ),
+
+      fetch(
+        `${API_BASE}/api/cash-register/current`
+      ).then(response =>
+        response.ok
+          ? response.json()
+          : Promise.reject()
+      )
+    ]);
+
+    state.products = products;
+    state.inventoryMovements = inventoryMovements;
+
+    state.sales = sales.map(sale => ({
+      id: sale.number,
+      detail:
+        `${sale.customer_name} · venta registrada`,
+      total: Number(sale.total),
+      payment: sale.payment_method,
+      status: sale.status,
+      created_at: sale.created_at
+    }));
+
+    state.expenses = expenses.map(expense => ({
+      concept: expense.concept,
+      provider:
+        expense.provider ||
+        'Sin proveedor',
+      value: Number(expense.value),
+      date:
+        new Date(
+          expense.created_at
+        ).toLocaleDateString('es-CO'),
+      created_at: expense.created_at
+    }));
+
+    state.cashRegister =
+      cashRegister || {
+        status: 'CLOSED',
+        session: null
+      };
+
+    render(currentView);
+
+    if (showToast) {
+      toast(
+        'Datos sincronizados con la API'
+      );
+    }
+
+    return true;
+
+  } catch (error) {
+    console.info(
+      'API no disponible; usando datos de demostración'
+    );
+
+    return false;
+  }
+}
+
+
+/* ============================================================
+   START
+============================================================ */
+
+document
+  .querySelectorAll('.nav-item')
+  .forEach(button => {
+    button.onclick = () =>
+      render(button.dataset.view);
+  });
+
+render();
+
+syncFromApi();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* ============================================================
+   AUTH STARTUP
+============================================================ */
+
+initializeAuthentication();
+

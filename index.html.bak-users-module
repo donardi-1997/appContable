@@ -10,7 +10,10 @@
 
 <body class="auth-locked">
 
-  <div class="login-screen" id="login-screen">
+  <div
+    class="login-screen"
+    id="login-screen"
+  >
     <div class="login-panel">
 
       <div class="login-brand">
@@ -53,8 +56,15 @@
             Usuario
           </span>
 
-          <input class="input" id="login-username" name="username" type="text" autocomplete="username"
-            placeholder="Usuario" required />
+          <input
+            class="input"
+            id="login-username"
+            name="username"
+            type="text"
+            autocomplete="username"
+            placeholder="Usuario"
+            required
+          />
         </label>
 
 
@@ -63,15 +73,30 @@
             Contraseña
           </span>
 
-          <input class="input" id="login-password" name="password" type="password" autocomplete="current-password"
-            placeholder="Contraseña" required />
+          <input
+            class="input"
+            id="login-password"
+            name="password"
+            type="password"
+            autocomplete="current-password"
+            placeholder="Contraseña"
+            required
+          />
         </label>
 
 
-        <div class="login-error" id="login-error" hidden></div>
+        <div
+          class="login-error"
+          id="login-error"
+          hidden
+        ></div>
 
 
-        <button type="submit" class="btn login-submit" id="login-submit">
+        <button
+          type="submit"
+          class="btn login-submit"
+          id="login-submit"
+        >
           Iniciar sesión
         </button>
 
@@ -119,21 +144,6 @@
             Facturación electrónica
           </span>
         </button>
-
-        <button type="button" class="nav-item" data-view="users" aria-label="Usuarios" hidden>
-          <span class="nav-icon">♙</span>
-          <span class="nav-label">
-            Usuarios
-          </span>
-        </button>
-
-        <button type="button" class="nav-item" data-view="audit" aria-label="Auditoría" hidden>
-          <span class="nav-icon">◎</span>
-          <span class="nav-label">
-            Auditoría
-          </span>
-        </button>
-
       </nav>
       <div class="sidebar-foot"><span class="status-dot"></span> Sistema en línea<br><small>Una sede · Bogotá</small>
       </div>
@@ -157,13 +167,21 @@
               </small>
             </div>
 
-            <div class="avatar" id="current-user-avatar">
+            <div
+              class="avatar"
+              id="current-user-avatar"
+            >
               U
             </div>
           </div>
 
-          <button class="icon-btn logout-btn" id="logout-button" type="button" title="Cerrar sesión"
-            aria-label="Cerrar sesión">
+          <button
+            class="icon-btn logout-btn"
+            id="logout-button"
+            type="button"
+            title="Cerrar sesión"
+            aria-label="Cerrar sesión"
+          >
             ↪
           </button>
 

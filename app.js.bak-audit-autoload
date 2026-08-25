@@ -205,7 +205,6 @@ function getUserInitials(
 
 
 let systemAuditLogs = [];
-let systemAuditLoaded = false;
 
 
 function auditRoleLabel(role) {
@@ -614,8 +613,8 @@ function renderAuditTimeline() {
             "
           >
             ${auditActionIcon(
-        log.action
-      )}
+              log.action
+            )}
           </div>
 
 
@@ -642,8 +641,8 @@ function renderAuditTimeline() {
                     "
                   >
                     ${auditCategoryLabel(
-        log.action
-      )}
+                      log.action
+                    )}
                   </span>
 
 
@@ -654,8 +653,8 @@ function renderAuditTimeline() {
 
                   <span>
                     ${auditActionLabel(
-        log.action
-      )}
+                      log.action
+                    )}
                   </span>
 
                 </div>
@@ -672,8 +671,8 @@ function renderAuditTimeline() {
 
               <time>
                 ${auditDate(
-        log.created_at
-      )}
+                  log.created_at
+                )}
               </time>
 
             </div>
@@ -687,21 +686,22 @@ function renderAuditTimeline() {
                 class="pill"
               >
                 ${auditRoleLabel(
-        log.actor_role
-      )}
+                  log.actor_role
+                )}
               </span>
 
 
-              ${description
-          ? `
+              ${
+                description
+                  ? `
                     <span
                       class="audit-short-description"
                     >
                       ${description}
                     </span>
                   `
-          : ''
-        }
+                  : ''
+              }
 
 
               <button
@@ -763,8 +763,9 @@ function renderAuditTimeline() {
               </div>
 
 
-              ${description
-          ? `
+              ${
+                description
+                  ? `
                     <div
                       class="audit-detail-description"
                     >
@@ -777,8 +778,8 @@ function renderAuditTimeline() {
                       </p>
                     </div>
                   `
-          : ''
-        }
+                  : ''
+              }
 
             </div>
 
@@ -858,8 +859,6 @@ async function loadSystemAudit() {
     Array.isArray(data)
       ? data
       : [];
-
-  systemAuditLoaded = true;
 }
 
 
@@ -1023,18 +1022,19 @@ function auditView() {
               Todos los usuarios
             </option>
 
-            ${actors
-      .map(
-        ([id, name]) => `
+            ${
+              actors
+                .map(
+                  ([id, name]) => `
                     <option
                       value="${id}"
                     >
                       ${name}
                     </option>
                   `
-      )
-      .join('')
-    }
+                )
+                .join('')
+            }
           </select>
 
 
@@ -1081,22 +1081,16 @@ function auditView() {
 
 async function openAuditModule() {
   try {
-    currentView = 'audit';
-
-    sessionStorage.setItem(
-      'lp-current-view',
-      currentView
-    );
-
     await loadSystemAudit();
 
-    render('audit');
+    currentView = 'audit';
+
+    render(
+      'audit'
+    );
 
   } catch (error) {
-    console.error(
-      'Error cargando Auditoría:',
-      error
-    );
+    console.error(error);
 
     alert(
       error.message
@@ -1142,7 +1136,9 @@ function bindAuditEvents() {
         try {
           await loadSystemAudit();
 
-          render('audit');
+          render(
+            'audit'
+          );
 
         } catch (error) {
           alert(
@@ -5715,15 +5711,6 @@ function filterInventoryProducts() {
 
 
 function render(view = currentView || 'dashboard') {
-  if (
-    view === 'audit'
-    && !systemAuditLoaded
-  ) {
-    openAuditModule();
-    return;
-  }
-
-
 
   if (
     !view ||
@@ -6159,14 +6146,14 @@ document
 
       render(targetView);
     };
+  
 
+  ensureAuditNavItem();
 
-    ensureAuditNavItem();
-
-    if (currentView === 'audit') {
-      bindAuditEvents();
-    }
-  });
+  if (currentView === 'audit') {
+    bindAuditEvents();
+  }
+});
 
 render();
 
@@ -6385,10 +6372,11 @@ function usersView() {
         </div>
 
         <span
-          class="delta ${inactiveUsers
-      ? 'negative'
-      : 'positive'
-    }"
+          class="delta ${
+            inactiveUsers
+              ? 'negative'
+              : 'positive'
+          }"
         >
           Sin acceso
         </span>
@@ -6598,14 +6586,15 @@ function usersView() {
 
         <div class="users-list">
 
-          ${manageableUsers.length
-      ? manageableUsers.map(
-        user => `
+          ${
+            manageableUsers.length
+              ? manageableUsers.map(
+                  user => `
                     <article
                       class="user-item"
                       data-user-search="${(
-            `${user.full_name || ''} ${user.username || ''}`
-          ).toLowerCase()}"
+                        `${user.full_name || ''} ${user.username || ''}`
+                      ).toLowerCase()}"
                       data-user-role="${user.role}"
                       data-user-status="${user.active ? 'active' : 'inactive'}"
                     >
@@ -6614,8 +6603,8 @@ function usersView() {
                         class="user-avatar"
                       >
                         ${getUserInitials(
-            user.full_name
-          )}
+                          user.full_name
+                        )}
                       </div>
 
 
@@ -6631,15 +6620,17 @@ function usersView() {
                           </strong>
 
                           <span
-                            class="pill ${user.active
-            ? 'green'
-            : 'yellow'
-          }"
+                            class="pill ${
+                              user.active
+                                ? 'green'
+                                : 'yellow'
+                            }"
                           >
-                            ${user.active
-            ? 'Activo'
-            : 'Desactivado'
-          }
+                            ${
+                              user.active
+                                ? 'Activo'
+                                : 'Desactivado'
+                            }
                           </span>
                         </div>
 
@@ -6648,8 +6639,8 @@ function usersView() {
                           @${user.username}
                           ·
                           ${userRoleLabel(
-            user.role
-          )}
+                            user.role
+                          )}
                         </small>
 
                       </div>
@@ -6659,8 +6650,9 @@ function usersView() {
                         class="user-actions"
                       >
 
-                        ${user.active
-            ? `
+                        ${
+                          user.active
+                            ? `
                               <button
                                 type="button"
                                 class="
@@ -6674,7 +6666,7 @@ function usersView() {
                                 Desactivar usuario
                               </button>
                             `
-            : `
+                            : `
                               <button
                                 type="button"
                                 class="
@@ -6687,20 +6679,20 @@ function usersView() {
                                 Reactivar
                               </button>
                             `
-          }
+                        }
 
                       </div>
 
                     </article>
                   `
-      ).join('')
-      : `
+                ).join('')
+              : `
                   <div class="empty">
                     No hay usuarios de caja
                     u operación.
                   </div>
                 `
-    }
+          }
 
           <div
             class="empty"
@@ -6731,8 +6723,9 @@ function usersView() {
         </div>
 
         <span class="pill">
-          ${state.userAudit.length
-    }
+          ${
+            state.userAudit.length
+          }
         </span>
 
       </div>
@@ -6740,11 +6733,12 @@ function usersView() {
 
       <div class="users-audit-list">
 
-        ${state.userAudit.length
-      ? state.userAudit
-        .slice(0, 20)
-        .map(
-          log => `
+        ${
+          state.userAudit.length
+            ? state.userAudit
+                .slice(0, 20)
+                .map(
+                  log => `
                     <div
                       class="users-audit-item"
                     >
@@ -6753,14 +6747,14 @@ function usersView() {
                         class="
                           users-audit-icon
                           audit-${(
-              log.action ||
-              ''
-            ).toLowerCase()}
+                            log.action ||
+                            ''
+                          ).toLowerCase()}
                         "
                       >
                         ${userAuditIcon(
-              log.action
-            )}
+                          log.action
+                        )}
                       </div>
 
 
@@ -6775,8 +6769,8 @@ function usersView() {
 
                           <span>
                             ${userAuditActionLabel(
-              log.action
-            )}
+                              log.action
+                            )}
                           </span>
 
                           <strong>
@@ -6788,29 +6782,30 @@ function usersView() {
                           @${log.target_username}
                           ·
                           ${userRoleLabel(
-              log.target_role
-            )}
+                            log.target_role
+                          )}
                           ·
-                          ${new Date(
-              log.created_at
-            ).toLocaleString(
-              'es-CO'
-            )
-            }
+                          ${
+                            new Date(
+                              log.created_at
+                            ).toLocaleString(
+                              'es-CO'
+                            )
+                          }
                         </small>
 
                       </div>
 
                     </div>
                   `
-        ).join('')
-      : `
+                ).join('')
+            : `
                 <div class="empty">
                   Aún no hay actividad
                   registrada.
                 </div>
               `
-    }
+        }
 
       </div>
 

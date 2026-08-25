@@ -5,24 +5,9 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
-BACKEND_DIR = Path(__file__).resolve().parent.parent
-SQLITE_PATH = BACKEND_DIR / "gato_contable.db"
-
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    f"sqlite:///{SQLITE_PATH.as_posix()}",
-)
-
-connect_args = (
-    {"check_same_thread": False}
-    if DATABASE_URL.startswith("sqlite")
-    else {}
-)
-
-engine = create_engine(
-    DATABASE_URL,
-    connect_args=connect_args,
-)
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./gato_contable.db")
+connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+engine = create_engine(DATABASE_URL, connect_args=connect_args)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 

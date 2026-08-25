@@ -203,1007 +203,6 @@ function getUserInitials(
 }
 
 
-
-let systemAuditLogs = [];
-let systemAuditLoaded = false;
-
-
-function auditRoleLabel(role) {
-  const labels = {
-    ADMIN: 'Administrador',
-    CASHIER: 'Caja',
-    OPERATION: 'Operación'
-  };
-
-  return labels[role] || role || 'Sistema';
-}
-
-
-function auditActionLabel(action) {
-  const labels = {
-    PRODUCT_CREATE:
-      'Creó producto',
-
-    PRODUCT_DEACTIVATE:
-      'Desactivó producto',
-
-    QR_CREATE:
-      'Generó QR',
-
-    QR_DELETE:
-      'Eliminó QR',
-
-    SALE_CREATE:
-      'Registró venta',
-
-    EXPENSE_CREATE:
-      'Registró gasto',
-
-    INVENTORY_ADJUSTMENT:
-      'Ajustó inventario',
-
-    CASH_OPEN:
-      'Abrió caja',
-
-    CASH_CLOSE:
-      'Cerró caja',
-
-    USER_CREATE:
-      'Creó usuario',
-
-    USER_DEACTIVATE:
-      'Desactivó usuario',
-
-    USER_REACTIVATE:
-      'Reactivó usuario'
-  };
-
-  return (
-    labels[action]
-    || action
-    || 'Actividad'
-  );
-}
-
-
-function auditActionIcon(action) {
-  const icons = {
-    PRODUCT_CREATE: '＋',
-    PRODUCT_DEACTIVATE: '−',
-    QR_CREATE: 'QR',
-    QR_DELETE: '×',
-    SALE_CREATE: '$',
-    EXPENSE_CREATE: '↘',
-    INVENTORY_ADJUSTMENT: '↕',
-    CASH_OPEN: '↗',
-    CASH_CLOSE: '✓',
-    USER_CREATE: '+',
-    USER_DEACTIVATE: '−',
-    USER_REACTIVATE: '↻'
-  };
-
-  return icons[action] || '•';
-}
-
-
-function auditActionCategory(action) {
-  if (
-    action?.startsWith('PRODUCT')
-    || action?.startsWith('QR')
-  ) {
-    return 'inventory';
-  }
-
-  if (action?.startsWith('SALE')) {
-    return 'sales';
-  }
-
-  if (action?.startsWith('EXPENSE')) {
-    return 'expenses';
-  }
-
-  if (action?.startsWith('CASH')) {
-    return 'cash';
-  }
-
-  if (action?.startsWith('USER')) {
-    return 'users';
-  }
-
-  if (action?.startsWith('INVENTORY')) {
-    return 'inventory';
-  }
-
-  return 'other';
-}
-
-
-function auditCategoryLabel(action) {
-  const category =
-    auditActionCategory(action);
-
-  const labels = {
-    sales: 'Venta',
-    cash: 'Caja',
-    inventory: 'Inventario',
-    expenses: 'Gasto',
-    users: 'Usuario',
-    other: 'Sistema'
-  };
-
-  return (
-    labels[category]
-    || 'Sistema'
-  );
-}
-
-
-function auditEntityLabel(log) {
-  if (
-    log.entity_name
-    && log.entity_name !== 'Caja'
-  ) {
-    return log.entity_name;
-  }
-
-  if (log.entity_type === 'CASH_REGISTER') {
-    return 'Caja';
-  }
-
-  return (
-    log.entity_name
-    || log.entity_type
-    || 'Sistema'
-  );
-}
-
-
-function auditDate(value) {
-  if (!value) {
-    return '';
-  }
-
-  const date =
-    new Date(value);
-
-  const now =
-    new Date();
-
-  const sameDay =
-    date.getFullYear() === now.getFullYear()
-    && date.getMonth() === now.getMonth()
-    && date.getDate() === now.getDate();
-
-  const yesterday =
-    new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate() - 1
-    );
-
-  const isYesterday =
-    date.getFullYear() === yesterday.getFullYear()
-    && date.getMonth() === yesterday.getMonth()
-    && date.getDate() === yesterday.getDate();
-
-  const time =
-    date.toLocaleTimeString(
-      'es-CO',
-      {
-        hour: 'numeric',
-        minute: '2-digit'
-      }
-    );
-
-  if (sameDay) {
-    return `Hoy · ${time}`;
-  }
-
-  if (isYesterday) {
-    return `Ayer · ${time}`;
-  }
-
-  return date.toLocaleString(
-    'es-CO',
-    {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit'
-    }
-  );
-}
-
-
-function auditPeriodStart(period) {
-  const now = new Date();
-
-  if (period === 'day') {
-    return new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate()
-    );
-  }
-
-  if (period === 'week') {
-    const result = new Date(now);
-
-    const day =
-      result.getDay() || 7;
-
-    result.setDate(
-      result.getDate()
-      - day
-      + 1
-    );
-
-    result.setHours(
-      0,
-      0,
-      0,
-      0
-    );
-
-    return result;
-  }
-
-  if (period === 'month') {
-    return new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      1
-    );
-  }
-
-  if (period === 'year') {
-    return new Date(
-      now.getFullYear(),
-      0,
-      1
-    );
-  }
-
-  return null;
-}
-
-
-function filteredAuditLogs() {
-  const search =
-    document
-      .querySelector('#audit-search')
-      ?.value
-      .trim()
-      .toLowerCase()
-    || '';
-
-  const category =
-    document
-      .querySelector('#audit-category')
-      ?.value
-    || 'all';
-
-  const actor =
-    document
-      .querySelector('#audit-user')
-      ?.value
-    || 'all';
-
-  const period =
-    document
-      .querySelector('#audit-period')
-      ?.value
-    || 'all';
-
-  const start =
-    auditPeriodStart(period);
-
-  return systemAuditLogs.filter(
-    log => {
-      const haystack = [
-        log.actor_name,
-        log.actor_role,
-        log.action,
-        log.entity_type,
-        log.entity_name,
-        log.description
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase();
-
-      const matchesSearch =
-        !search
-        || haystack.includes(search);
-
-      const matchesCategory =
-        category === 'all'
-        || auditActionCategory(
-          log.action
-        ) === category;
-
-      const matchesActor =
-        actor === 'all'
-        || String(
-          log.actor_user_id
-        ) === actor;
-
-      const matchesPeriod =
-        !start
-        || (
-          log.created_at
-          && new Date(
-            log.created_at
-          ) >= start
-        );
-
-      return (
-        matchesSearch
-        && matchesCategory
-        && matchesActor
-        && matchesPeriod
-      );
-    }
-  );
-}
-
-
-function renderAuditTimeline() {
-  const container =
-    document.querySelector(
-      '#audit-timeline'
-    );
-
-  if (!container) {
-    console.warn(
-      'No existe #audit-timeline'
-    );
-
-    return;
-  }
-
-  const logs =
-    filteredAuditLogs();
-
-  const counter =
-    document.querySelector(
-      '#audit-visible-count'
-    );
-
-  if (counter) {
-    counter.textContent =
-      String(logs.length);
-  }
-
-  if (!logs.length) {
-    container.innerHTML = `
-      <div class="empty audit-empty">
-        No hay movimientos para
-        los filtros seleccionados.
-      </div>
-    `;
-
-    return;
-  }
-
-  const html =
-    logs.map(log => {
-
-      const category =
-        auditActionCategory(
-          log.action
-        );
-
-      const entity =
-        auditEntityLabel(log);
-
-      const description =
-        log.description || '';
-
-      return `
-        <article
-          class="audit-event"
-          data-audit-id="${log.id}"
-        >
-
-          <div
-            class="
-              audit-event-icon
-              audit-event-${category}
-            "
-          >
-            ${auditActionIcon(
-        log.action
-      )}
-          </div>
-
-
-          <div
-            class="audit-event-body"
-          >
-
-            <div
-              class="audit-event-main"
-            >
-
-              <div
-                class="audit-event-title"
-              >
-
-                <div
-                  class="audit-event-title-row"
-                >
-
-                  <span
-                    class="
-                      audit-type-badge
-                      audit-type-${category}
-                    "
-                  >
-                    ${auditCategoryLabel(
-        log.action
-      )}
-                  </span>
-
-
-                  <strong>
-                    ${log.actor_name || 'Sistema'}
-                  </strong>
-
-
-                  <span>
-                    ${auditActionLabel(
-        log.action
-      )}
-                  </span>
-
-                </div>
-
-
-                <b
-                  class="audit-entity-name"
-                >
-                  ${entity}
-                </b>
-
-              </div>
-
-
-              <time>
-                ${auditDate(
-        log.created_at
-      )}
-              </time>
-
-            </div>
-
-
-            <div
-              class="audit-event-meta"
-            >
-
-              <span
-                class="pill"
-              >
-                ${auditRoleLabel(
-        log.actor_role
-      )}
-              </span>
-
-
-              ${description
-          ? `
-                    <span
-                      class="audit-short-description"
-                    >
-                      ${description}
-                    </span>
-                  `
-          : ''
-        }
-
-
-              <button
-                type="button"
-                class="audit-detail-toggle"
-                data-audit-toggle="${log.id}"
-              >
-                Ver detalle
-              </button>
-
-            </div>
-
-
-            <div
-              class="audit-event-detail"
-              id="audit-detail-${log.id}"
-              hidden
-            >
-
-              <div
-                class="audit-detail-grid"
-              >
-
-                <div>
-                  <small>Acción</small>
-
-                  <strong>
-                    ${log.action || '—'}
-                  </strong>
-                </div>
-
-
-                <div>
-                  <small>Tipo</small>
-
-                  <strong>
-                    ${log.entity_type || '—'}
-                  </strong>
-                </div>
-
-
-                <div>
-                  <small>ID</small>
-
-                  <strong>
-                    ${log.entity_id || '—'}
-                  </strong>
-                </div>
-
-
-                <div>
-                  <small>Usuario</small>
-
-                  <strong>
-                    ${log.actor_name || 'Sistema'}
-                  </strong>
-                </div>
-
-              </div>
-
-
-              ${description
-          ? `
-                    <div
-                      class="audit-detail-description"
-                    >
-                      <small>
-                        Descripción
-                      </small>
-
-                      <p>
-                        ${description}
-                      </p>
-                    </div>
-                  `
-          : ''
-        }
-
-            </div>
-
-          </div>
-
-        </article>
-      `;
-    }).join('');
-
-  container.innerHTML =
-    html;
-
-  bindAuditDetailToggles();
-}
-
-
-function bindAuditDetailToggles() {
-  document
-    .querySelectorAll(
-      '[data-audit-toggle]'
-    )
-    .forEach(
-      button => {
-
-        button.onclick = () => {
-
-          const id =
-            button.dataset.auditToggle;
-
-          const detail =
-            document.getElementById(
-              `audit-detail-${id}`
-            );
-
-          if (!detail) {
-            return;
-          }
-
-          const opening =
-            detail.hidden;
-
-          detail.hidden =
-            !opening;
-
-          button.textContent =
-            opening
-              ? 'Ocultar detalle'
-              : 'Ver detalle';
-        };
-
-      }
-    );
-}
-
-
-async function loadSystemAudit() {
-  const response =
-    await authenticatedFetch(
-      `${API_BASE}/api/audit?limit=500`
-    );
-
-  const data =
-    await response
-      .json()
-      .catch(
-        () => []
-      );
-
-  if (!response.ok) {
-    throw new Error(
-      data.detail
-      || 'No fue posible cargar la auditoría.'
-    );
-  }
-
-  systemAuditLogs =
-    Array.isArray(data)
-      ? data
-      : [];
-
-  systemAuditLoaded = true;
-}
-
-
-function auditView() {
-  const actors = [
-    ...new Map(
-      systemAuditLogs
-        .filter(
-          log =>
-            log.actor_user_id
-        )
-        .map(
-          log => [
-            String(
-              log.actor_user_id
-            ),
-            log.actor_name
-          ]
-        )
-    ).entries()
-  ];
-
-  return `
-    <section
-      class="audit-page"
-    >
-
-      <div
-        class="audit-summary-grid"
-      >
-
-        <article
-          class="card audit-summary-card"
-        >
-          <span>
-            Movimientos
-          </span>
-
-          <strong>
-            ${systemAuditLogs.length}
-          </strong>
-        </article>
-
-
-        <article
-          class="card audit-summary-card"
-        >
-          <span>
-            Usuarios
-          </span>
-
-          <strong>
-            ${actors.length}
-          </strong>
-        </article>
-
-
-        <article
-          class="card audit-summary-card"
-        >
-          <span>
-            Mostrando
-          </span>
-
-          <strong
-            id="audit-visible-count"
-          >
-            ${systemAuditLogs.length}
-          </strong>
-        </article>
-
-      </div>
-
-
-      <section
-        class="card audit-card"
-      >
-
-        <div
-          class="card-head"
-        >
-
-          <div>
-            <p class="eyebrow">
-              CONTROL INTERNO
-            </p>
-
-            <h2>
-              Historial del sistema
-            </h2>
-
-            <p
-              class="audit-subtitle"
-            >
-              Consulta quién realizó cada
-              operación dentro de
-              La Patrona VIP.
-            </p>
-          </div>
-
-
-          <button
-            type="button"
-            class="btn secondary"
-            id="audit-refresh"
-          >
-            Actualizar
-          </button>
-
-        </div>
-
-
-        <div
-          class="audit-toolbar"
-        >
-
-          <input
-            class="input"
-            id="audit-search"
-            type="search"
-            placeholder="Buscar usuario, producto, venta..."
-            autocomplete="off"
-          />
-
-
-          <select
-            class="input"
-            id="audit-category"
-          >
-            <option value="all">
-              Todas las acciones
-            </option>
-
-            <option value="sales">
-              Ventas
-            </option>
-
-            <option value="cash">
-              Caja
-            </option>
-
-            <option value="inventory">
-              Inventario y QR
-            </option>
-
-            <option value="expenses">
-              Gastos
-            </option>
-
-            <option value="users">
-              Usuarios
-            </option>
-          </select>
-
-
-          <select
-            class="input"
-            id="audit-user"
-          >
-            <option value="all">
-              Todos los usuarios
-            </option>
-
-            ${actors
-      .map(
-        ([id, name]) => `
-                    <option
-                      value="${id}"
-                    >
-                      ${name}
-                    </option>
-                  `
-      )
-      .join('')
-    }
-          </select>
-
-
-          <select
-            class="input"
-            id="audit-period"
-          >
-            <option value="all">
-              Todo el historial
-            </option>
-
-            <option value="day">
-              Hoy
-            </option>
-
-            <option value="week">
-              Esta semana
-            </option>
-
-            <option value="month">
-              Este mes
-            </option>
-
-            <option value="year">
-              Este año
-            </option>
-          </select>
-
-        </div>
-
-
-        <div
-          class="audit-timeline"
-          id="audit-timeline"
-        >
-        </div>
-
-      </section>
-
-    </section>
-  `;
-}
-
-
-async function openAuditModule() {
-  try {
-    currentView = 'audit';
-
-    sessionStorage.setItem(
-      'lp-current-view',
-      currentView
-    );
-
-    await loadSystemAudit();
-
-    render('audit');
-
-  } catch (error) {
-    console.error(
-      'Error cargando Auditoría:',
-      error
-    );
-
-    alert(
-      error.message
-      || 'No fue posible abrir Auditoría.'
-    );
-  }
-}
-
-
-function bindAuditEvents() {
-  [
-    '#audit-search',
-    '#audit-category',
-    '#audit-user',
-    '#audit-period'
-  ].forEach(
-    selector => {
-      const element =
-        document.querySelector(
-          selector
-        );
-
-      if (!element) {
-        return;
-      }
-
-      element.addEventListener(
-        selector === '#audit-search'
-          ? 'input'
-          : 'change',
-        renderAuditTimeline
-      );
-    }
-  );
-
-  document
-    .querySelector(
-      '#audit-refresh'
-    )
-    ?.addEventListener(
-      'click',
-      async () => {
-        try {
-          await loadSystemAudit();
-
-          render('audit');
-
-        } catch (error) {
-          alert(
-            error.message
-            || 'No fue posible actualizar.'
-          );
-        }
-      }
-    );
-
-  document
-    .querySelectorAll(
-      '[data-audit-toggle]'
-    )
-    .forEach(
-      button => {
-
-        button.addEventListener(
-          'click',
-          () => {
-
-            const id =
-              button.dataset.auditToggle;
-
-            const detail =
-              document.getElementById(
-                `audit-detail-${id}`
-              );
-
-            if (!detail) {
-              return;
-            }
-
-            const opening =
-              detail.hidden;
-
-            detail.hidden =
-              !opening;
-
-            button.textContent =
-              opening
-                ? 'Ocultar detalle'
-                : 'Ver detalle';
-          }
-        );
-
-      }
-    );
-
-  renderAuditTimeline();
-}
-
-
-function ensureAuditNavItem() {
-  // El botón Auditoría ya existe en index.html.
-  // Su visibilidad la controla allowedViewsForRole().
-  return;
-}
-
-
-
 function allowedViewsForRole(
   role
 ) {
@@ -1216,7 +215,8 @@ function allowedViewsForRole(
         'inventory',
         'expenses',
         'invoices',
-        'users', 'audit'];
+        'users'
+      ];
 
     case 'CASHIER':
       return [
@@ -5518,14 +4518,7 @@ const views = {
     title: 'Facturación electrónica',
     render: invoices
   }
-}
-
-views.audit = {
-  title: 'Auditoría',
-  render: auditView
 };
-
-;
 
 let currentView =
   sessionStorage.getItem('lp-current-view') ||
@@ -5715,15 +4708,6 @@ function filterInventoryProducts() {
 
 
 function render(view = currentView || 'dashboard') {
-  if (
-    view === 'audit'
-    && !systemAuditLoaded
-  ) {
-    openAuditModule();
-    return;
-  }
-
-
 
   if (
     !view ||
@@ -5760,11 +4744,6 @@ function render(view = currentView || 'dashboard') {
 
       if (targetView === 'users') {
         openUsersModule();
-        return;
-      }
-
-      if (targetView === 'audit') {
-        openAuditModule();
         return;
       }
 
@@ -6143,29 +5122,8 @@ async function syncFromApi(showToast = true) {
 document
   .querySelectorAll('.nav-item')
   .forEach(button => {
-    button.onclick = () => {
-      const targetView =
-        button.dataset.view;
-
-      if (targetView === 'users') {
-        openUsersModule();
-        return;
-      }
-
-      if (targetView === 'audit') {
-        openAuditModule();
-        return;
-      }
-
-      render(targetView);
-    };
-
-
-    ensureAuditNavItem();
-
-    if (currentView === 'audit') {
-      bindAuditEvents();
-    }
+    button.onclick = () =>
+      render(button.dataset.view);
   });
 
 render();
@@ -6385,10 +5343,11 @@ function usersView() {
         </div>
 
         <span
-          class="delta ${inactiveUsers
-      ? 'negative'
-      : 'positive'
-    }"
+          class="delta ${
+            inactiveUsers
+              ? 'negative'
+              : 'positive'
+          }"
         >
           Sin acceso
         </span>
@@ -6598,14 +5557,15 @@ function usersView() {
 
         <div class="users-list">
 
-          ${manageableUsers.length
-      ? manageableUsers.map(
-        user => `
+          ${
+            manageableUsers.length
+              ? manageableUsers.map(
+                  user => `
                     <article
                       class="user-item"
                       data-user-search="${(
-            `${user.full_name || ''} ${user.username || ''}`
-          ).toLowerCase()}"
+                        `${user.full_name || ''} ${user.username || ''}`
+                      ).toLowerCase()}"
                       data-user-role="${user.role}"
                       data-user-status="${user.active ? 'active' : 'inactive'}"
                     >
@@ -6614,8 +5574,8 @@ function usersView() {
                         class="user-avatar"
                       >
                         ${getUserInitials(
-            user.full_name
-          )}
+                          user.full_name
+                        )}
                       </div>
 
 
@@ -6631,15 +5591,17 @@ function usersView() {
                           </strong>
 
                           <span
-                            class="pill ${user.active
-            ? 'green'
-            : 'yellow'
-          }"
+                            class="pill ${
+                              user.active
+                                ? 'green'
+                                : 'yellow'
+                            }"
                           >
-                            ${user.active
-            ? 'Activo'
-            : 'Desactivado'
-          }
+                            ${
+                              user.active
+                                ? 'Activo'
+                                : 'Desactivado'
+                            }
                           </span>
                         </div>
 
@@ -6648,8 +5610,8 @@ function usersView() {
                           @${user.username}
                           ·
                           ${userRoleLabel(
-            user.role
-          )}
+                            user.role
+                          )}
                         </small>
 
                       </div>
@@ -6659,8 +5621,9 @@ function usersView() {
                         class="user-actions"
                       >
 
-                        ${user.active
-            ? `
+                        ${
+                          user.active
+                            ? `
                               <button
                                 type="button"
                                 class="
@@ -6674,7 +5637,7 @@ function usersView() {
                                 Desactivar usuario
                               </button>
                             `
-            : `
+                            : `
                               <button
                                 type="button"
                                 class="
@@ -6687,20 +5650,20 @@ function usersView() {
                                 Reactivar
                               </button>
                             `
-          }
+                        }
 
                       </div>
 
                     </article>
                   `
-      ).join('')
-      : `
+                ).join('')
+              : `
                   <div class="empty">
                     No hay usuarios de caja
                     u operación.
                   </div>
                 `
-    }
+          }
 
           <div
             class="empty"
@@ -6731,8 +5694,9 @@ function usersView() {
         </div>
 
         <span class="pill">
-          ${state.userAudit.length
-    }
+          ${
+            state.userAudit.length
+          }
         </span>
 
       </div>
@@ -6740,11 +5704,12 @@ function usersView() {
 
       <div class="users-audit-list">
 
-        ${state.userAudit.length
-      ? state.userAudit
-        .slice(0, 20)
-        .map(
-          log => `
+        ${
+          state.userAudit.length
+            ? state.userAudit
+                .slice(0, 20)
+                .map(
+                  log => `
                     <div
                       class="users-audit-item"
                     >
@@ -6753,14 +5718,14 @@ function usersView() {
                         class="
                           users-audit-icon
                           audit-${(
-              log.action ||
-              ''
-            ).toLowerCase()}
+                            log.action ||
+                            ''
+                          ).toLowerCase()}
                         "
                       >
                         ${userAuditIcon(
-              log.action
-            )}
+                          log.action
+                        )}
                       </div>
 
 
@@ -6775,8 +5740,8 @@ function usersView() {
 
                           <span>
                             ${userAuditActionLabel(
-              log.action
-            )}
+                              log.action
+                            )}
                           </span>
 
                           <strong>
@@ -6788,29 +5753,30 @@ function usersView() {
                           @${log.target_username}
                           ·
                           ${userRoleLabel(
-              log.target_role
-            )}
+                            log.target_role
+                          )}
                           ·
-                          ${new Date(
-              log.created_at
-            ).toLocaleString(
-              'es-CO'
-            )
-            }
+                          ${
+                            new Date(
+                              log.created_at
+                            ).toLocaleString(
+                              'es-CO'
+                            )
+                          }
                         </small>
 
                       </div>
 
                     </div>
                   `
-        ).join('')
-      : `
+                ).join('')
+            : `
                 <div class="empty">
                   Aún no hay actividad
                   registrada.
                 </div>
               `
-    }
+        }
 
       </div>
 

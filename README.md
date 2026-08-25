@@ -1,6 +1,6 @@
-# Gato Contable
+# La Patrona VIP
 
-MVP visual para la operación contable de una discoteca pequeña. Incluye dashboard, ventas y caja, inventario, gastos y un sandbox local de facturación electrónica.
+Sistema administrativo y contable para la operación de La Patrona VIP. Incluye dashboard, ventas y caja, inventario, gastos y un sandbox local de facturación electrónica.
 
 ## Ejecutar localmente
 
@@ -35,3 +35,4 @@ Endpoints iniciales: `GET/POST /api/products`, `GET/POST /api/sales`, `GET/POST 
 5. Agregar usuarios/roles y backups automáticos.
 
 El modo sandbox genera consecutivos y CUFE simulados en `localStorage`; no emite documentos válidos ante la DIAN hasta integrar un proveedor autorizado y completar la habilitación tributaria.
+

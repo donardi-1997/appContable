@@ -15,7 +15,7 @@ import qrcode
 import jwt
 
 from .db import Base, engine, get_db
-from .models import CashRegisterSession, Expense, InventoryMovement, Product, ProductQR, Sale, SaleItem, User, UserAuditLog, SystemAuditLog
+from .models import CashRegisterSession, Expense, InventoryMovement, Product, ProductQR, Sale, SaleItem, User
 from .schemas import CashRegisterCloseCreate, CashRegisterOpenCreate, ExpenseCreate, InventoryAdjustmentCreate, LoginCreate, ProductCreate, ProductRead, SaleCreate, UserActiveUpdate, UserCreate
 
 Base.metadata.create_all(bind=engine)
@@ -636,112 +636,9 @@ def auth_me(
     }
 
 
-
-def write_user_audit(
-    db: Session,
-    actor: User | None,
-    target: User,
-    action: str,
-) -> None:
-
-    log = UserAuditLog(
-        actor_user_id=(
-            actor.id
-            if actor
-            else None
-        ),
-        target_user_id=target.id,
-        action=action,
-        actor_name=(
-            actor.full_name
-            if actor
-            else "Sistema"
-        ),
-        target_name=target.full_name,
-        target_username=target.username,
-        target_role=target.role,
-    )
-
-    db.add(log)
-
-
-
-def write_system_audit(
-    db: Session,
-    actor: User | None,
-    action: str,
-    entity_type: str,
-    entity_id: str | int | None = None,
-    entity_name: str | None = None,
-    description: str | None = None,
-) -> None:
-
-    log = SystemAuditLog(
-        actor_user_id=(
-            actor.id
-            if actor
-            else None
-        ),
-        actor_name=(
-            actor.full_name
-            if actor
-            else "Sistema"
-        ),
-        actor_role=(
-            actor.role
-            if actor
-            else None
-        ),
-        action=action,
-        entity_type=entity_type,
-        entity_id=(
-            str(entity_id)
-            if entity_id is not None
-            else None
-        ),
-        entity_name=entity_name,
-        description=description,
-    )
-
-    db.add(log)
-
-
 # ============================================================
 # USER ADMINISTRATION
 # ============================================================
-
-
-@app.get("/api/users/audit")
-def list_user_audit(
-    db: Session = Depends(get_db),
-    _admin: User | None = Depends(
-        require_admin
-    ),
-):
-
-    logs = db.scalars(
-        select(UserAuditLog)
-        .order_by(
-            UserAuditLog.created_at.desc()
-        )
-        .limit(100)
-    ).all()
-
-    return [
-        {
-            "id": log.id,
-            "actor_user_id": log.actor_user_id,
-            "target_user_id": log.target_user_id,
-            "action": log.action,
-            "actor_name": log.actor_name,
-            "target_name": log.target_name,
-            "target_username": log.target_username,
-            "target_role": log.target_role,
-            "created_at": log.created_at,
-        }
-        for log in logs
-    ]
-
 
 @app.get("/api/users")
 def list_users(
@@ -829,28 +726,6 @@ def create_user(
     )
 
     db.add(user)
-    db.flush()
-
-    write_user_audit(
-        db=db,
-        actor=_admin,
-        target=user,
-        action="CREATE",
-    )
-
-    write_system_audit(
-        db=db,
-        actor=_admin,
-        action="USER_CREATE",
-        entity_type="USER",
-        entity_id=user.id,
-        entity_name=user.full_name,
-        description=(
-            f"Usuario @{user.username} "
-            f"creado con rol {user.role}"
-        ),
-    )
-
     db.commit()
     db.refresh(user)
 
@@ -899,21 +774,7 @@ def update_user_active(
             ),
         )
 
-    previous_active = user.active
-
     user.active = payload.active
-
-    if previous_active != user.active:
-        write_user_audit(
-            db=db,
-            actor=admin,
-            target=user,
-            action=(
-                "REACTIVATE"
-                if user.active
-                else "DEACTIVATE"
-            ),
-        )
 
     db.commit()
     db.refresh(user)
@@ -956,13 +817,6 @@ def delete_user(
 
     user.active = False
 
-    write_user_audit(
-        db=db,
-        actor=admin,
-        target=user,
-        action="DEACTIVATE",
-    )
-
     db.commit()
     db.refresh(user)
 
@@ -972,49 +826,6 @@ def delete_user(
         "active": user.active,
         "deleted": True,
     }
-
-
-
-@app.get("/api/audit")
-def list_system_audit(
-    limit: int = 100,
-    db: Session = Depends(get_db),
-    _admin: User | None = Depends(
-        require_admin
-    ),
-):
-
-    limit = max(
-        1,
-        min(
-            limit,
-            500,
-        ),
-    )
-
-    logs = db.scalars(
-        select(SystemAuditLog)
-        .order_by(
-            SystemAuditLog.created_at.desc()
-        )
-        .limit(limit)
-    ).all()
-
-    return [
-        {
-            "id": log.id,
-            "actor_user_id": log.actor_user_id,
-            "actor_name": log.actor_name,
-            "actor_role": log.actor_role,
-            "action": log.action,
-            "entity_type": log.entity_type,
-            "entity_id": log.entity_id,
-            "entity_name": log.entity_name,
-            "description": log.description,
-            "created_at": log.created_at,
-        }
-        for log in logs
-    ]
 
 
 @app.get("/health")
@@ -1078,19 +889,8 @@ def create_product(
         db.add(movement)
 
     try:
-        write_system_audit(
-            db=db,
-            actor=_admin,
-            action="PRODUCT_CREATE",
-            entity_type="PRODUCT",
-            entity_id=product.id,
-            entity_name=product.name,
-            description="Producto creado",
-        )
-
         db.commit()
         db.refresh(product)
-
     except Exception:
         db.rollback()
         raise
@@ -1114,16 +914,6 @@ def delete_product(
         )
 
     product.active = False
-    write_system_audit(
-        db=db,
-        actor=_admin,
-        action="PRODUCT_DEACTIVATE",
-        entity_type="PRODUCT",
-        entity_id=product.id,
-        entity_name=product.name,
-        description="Producto desactivado",
-    )
-
 
     db.commit()
 
@@ -1172,16 +962,6 @@ def generate_product_qr(
         )
 
         db.add(product_qr)
-        write_system_audit(
-            db=db,
-            actor=_admin,
-            action="QR_CREATE",
-            entity_type="PRODUCT_QR",
-            entity_id=product_qr.id,
-            entity_name=product.name,
-            description="Código QR generado",
-        )
-
         db.commit()
         db.refresh(product_qr)
 
@@ -1236,20 +1016,6 @@ def delete_product_qr(
         )
 
     db.delete(product_qr)
-    write_system_audit(
-        db=db,
-        actor=_admin,
-        action="QR_DELETE",
-        entity_type="PRODUCT_QR",
-        entity_id=product_qr.id,
-        entity_name=(
-            product_qr.product.name
-            if product_qr.product
-            else str(product_id)
-        ),
-        description="Código QR eliminado",
-    )
-
     db.commit()
 
     return {
@@ -1270,16 +1036,7 @@ def delete_product_qr(
         )
     ],
 )
-def create_sale(
-    payload: SaleCreate,
-    db: Session = Depends(get_db),
-    actor: User = Depends(
-        require_roles(
-            "ADMIN",
-            "CASHIER",
-        )
-    ),
-):
+def create_sale(payload: SaleCreate, db: Session = Depends(get_db)):
     product_ids = [item.product_id for item in payload.items]
 
     products = {
@@ -1355,21 +1112,8 @@ def create_sale(
         db.add(movement)
 
     try:
-        write_system_audit(
-            db=db,
-            actor=actor,
-            action="SALE_CREATE",
-            entity_type="SALE",
-            entity_id=sale.id,
-            entity_name=sale.number,
-            description=(
-                f"Venta registrada por {sale.total}"
-            ),
-        )
-
         db.commit()
         db.refresh(sale)
-
     except Exception:
         db.rollback()
         raise
@@ -1397,29 +1141,9 @@ def list_sales(db: Session = Depends(get_db)):
         )
     ],
 )
-def create_expense(
-    payload: ExpenseCreate,
-    db: Session = Depends(get_db),
-    actor: User = Depends(
-        require_roles(
-            "ADMIN",
-        )
-    ),
-):
+def create_expense(payload: ExpenseCreate, db: Session = Depends(get_db)):
     expense = Expense(**payload.model_dump())
     db.add(expense)
-    write_system_audit(
-        db=db,
-        actor=actor,
-        action="EXPENSE_CREATE",
-        entity_type="EXPENSE",
-        entity_id=expense.id,
-        entity_name=expense.concept,
-        description=(
-            f"Gasto registrado por {expense.value}"
-        ),
-    )
-
     db.commit()
     db.refresh(expense)
     return expense
@@ -1461,12 +1185,6 @@ def list_inventory_movements(db: Session = Depends(get_db)):
 def create_inventory_adjustment(
     payload: InventoryAdjustmentCreate,
     db: Session = Depends(get_db),
-    actor: User = Depends(
-        require_roles(
-            "ADMIN",
-            "OPERATION",
-        )
-    ),
 ):
     allowed_types = {
         "PURCHASE",
@@ -1525,22 +1243,8 @@ def create_inventory_adjustment(
     db.add(movement)
 
     try:
-        write_system_audit(
-            db=db,
-            actor=actor,
-            action="INVENTORY_ADJUSTMENT",
-            entity_type="INVENTORY",
-            entity_id=movement.id,
-            entity_name=product.name,
-            description=(
-                f"{movement.movement_type}: "
-                f"{movement.quantity}"
-            ),
-        )
-
         db.commit()
         db.refresh(movement)
-
     except Exception:
         db.rollback()
         raise
@@ -1573,12 +1277,6 @@ def create_inventory_adjustment(
 def open_cash_register(
     payload: CashRegisterOpenCreate,
     db: Session = Depends(get_db),
-    actor: User = Depends(
-        require_roles(
-            "ADMIN",
-            "CASHIER",
-        )
-    ),
 ):
     current = db.scalars(
         select(CashRegisterSession)
@@ -1601,21 +1299,8 @@ def open_cash_register(
     db.add(session)
 
     try:
-        write_system_audit(
-            db=db,
-            actor=actor,
-            action="CASH_OPEN",
-            entity_type="CASH_REGISTER",
-            entity_id=session.id,
-            entity_name="Caja",
-            description=(
-                f"Apertura por {session.opening_amount}"
-            ),
-        )
-
         db.commit()
         db.refresh(session)
-
     except Exception:
         db.rollback()
         raise
@@ -1703,12 +1388,6 @@ def get_current_cash_register(
 def close_cash_register(
     payload: CashRegisterCloseCreate,
     db: Session = Depends(get_db),
-    actor: User = Depends(
-        require_roles(
-            "ADMIN",
-            "CASHIER",
-        )
-    ),
 ):
     session = db.scalars(
         select(CashRegisterSession)
@@ -1765,22 +1444,8 @@ def close_cash_register(
     session.closed_at = datetime.utcnow()
 
     try:
-        write_system_audit(
-            db=db,
-            actor=actor,
-            action="CASH_CLOSE",
-            entity_type="CASH_REGISTER",
-            entity_id=session.id,
-            entity_name="Caja",
-            description=(
-                f"Cierre por {payload.closing_amount}; "
-                f"diferencia {difference}"
-            ),
-        )
-
         db.commit()
         db.refresh(session)
-
     except Exception:
         db.rollback()
         raise

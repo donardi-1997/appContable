@@ -1,0 +1,646 @@
+from datetime import datetime
+import base64
+import io
+import os
+import secrets
+from decimal import Decimal
+from fastapi import Depends, FastAPI, Header, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+import qrcode
+
+from .db import Base, engine, get_db
+from .models import CashRegisterSession, Expense, InventoryMovement, Product, ProductQR, Sale, SaleItem
+from .schemas import CashRegisterCloseCreate, CashRegisterOpenCreate, ExpenseCreate, InventoryAdjustmentCreate, ProductCreate, ProductRead, SaleCreate
+
+Base.metadata.create_all(bind=engine)
+app = FastAPI(title="Gato Contable API", version="0.1.0")
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+
+
+ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "").strip()
+
+
+def require_admin(
+    x_admin_key: str | None = Header(
+        default=None,
+        alias="X-Admin-Key",
+    ),
+) -> None:
+
+    if not ADMIN_API_KEY:
+        raise HTTPException(
+            status_code=500,
+            detail="ADMIN_API_KEY no está configurada en el servidor",
+        )
+
+    if (
+        not x_admin_key
+        or not secrets.compare_digest(
+            x_admin_key,
+            ADMIN_API_KEY,
+        )
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Permiso exclusivo de administrador",
+        )
+
+
+
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok", "environment": "development"}
+
+
+@app.get("/api/products")
+def list_products(db: Session = Depends(get_db)):
+    products = db.scalars(
+        select(Product)
+        .where(Product.active.is_(True))
+        .order_by(Product.name)
+    ).all()
+
+    qr_product_ids = set(
+        db.scalars(
+            select(ProductQR.product_id)
+        ).all()
+    )
+
+    return [
+        {
+            "id": product.id,
+            "name": product.name,
+            "sku": product.sku,
+            "unit": product.unit,
+            "price": product.price,
+            "stock": product.stock,
+            "minimum_stock": product.minimum_stock,
+            "active": product.active,
+            "has_qr": product.id in qr_product_ids,
+        }
+        for product in products
+    ]
+
+
+@app.post("/api/products", response_model=ProductRead, status_code=status.HTTP_201_CREATED)
+def create_product(
+    payload: ProductCreate,
+    db: Session = Depends(get_db),
+    _admin: None = Depends(require_admin),
+):
+    product = Product(**payload.model_dump())
+
+    db.add(product)
+    db.flush()
+
+    if product.stock > 0:
+        movement = InventoryMovement(
+            product=product,
+            movement_type="INITIAL_STOCK",
+            quantity=product.stock,
+            previous_stock=Decimal("0"),
+            new_stock=product.stock,
+            reference_type="PRODUCT",
+            reference_id=product.id,
+            notes=f"Stock inicial de {product.name}",
+        )
+
+        db.add(movement)
+
+    try:
+        db.commit()
+        db.refresh(product)
+    except Exception:
+        db.rollback()
+        raise
+
+    return product
+
+
+
+@app.delete("/api/products/{product_id}")
+def delete_product(
+    product_id: int,
+    db: Session = Depends(get_db),
+    _admin: None = Depends(require_admin),
+):
+    product = db.get(Product, product_id)
+
+    if not product or not product.active:
+        raise HTTPException(
+            status_code=404,
+            detail="Producto no encontrado",
+        )
+
+    product.active = False
+
+    db.commit()
+
+    return {
+        "ok": True,
+        "product_id": product.id,
+        "name": product.name,
+        "active": product.active,
+    }
+
+
+@app.post("/api/products/{product_id}/qr")
+def generate_product_qr(
+    product_id: int,
+    db: Session = Depends(get_db),
+    _admin: None = Depends(require_admin),
+):
+    product = db.get(Product, product_id)
+
+    if not product or not product.active:
+        raise HTTPException(
+            status_code=404,
+            detail="Producto no encontrado",
+        )
+
+    product_qr = db.scalar(
+        select(ProductQR).where(
+            ProductQR.product_id == product.id
+        )
+    )
+
+    created = False
+
+    if not product_qr:
+        random_part = secrets.token_hex(5).upper()
+
+        code = (
+            f"LP-PROD-"
+            f"{product.id:06d}-"
+            f"{random_part}"
+        )
+
+        product_qr = ProductQR(
+            product_id=product.id,
+            code=code,
+        )
+
+        db.add(product_qr)
+        db.commit()
+        db.refresh(product_qr)
+
+        created = True
+
+    image = qrcode.make(
+        product_qr.code
+    )
+
+    buffer = io.BytesIO()
+
+    image.save(
+        buffer,
+        format="PNG",
+    )
+
+    encoded = base64.b64encode(
+        buffer.getvalue()
+    ).decode("ascii")
+
+    return {
+        "id": product_qr.id,
+        "product_id": product.id,
+        "product_name": product.name,
+        "sku": product.sku,
+        "code": product_qr.code,
+        "created": created,
+        "created_at": product_qr.created_at,
+        "image_data_url": (
+            "data:image/png;base64,"
+            + encoded
+        ),
+    }
+
+
+@app.delete("/api/products/{product_id}/qr")
+def delete_product_qr(
+    product_id: int,
+    db: Session = Depends(get_db),
+    _admin: None = Depends(require_admin),
+):
+    product_qr = db.scalar(
+        select(ProductQR).where(
+            ProductQR.product_id == product_id
+        )
+    )
+
+    if not product_qr:
+        raise HTTPException(
+            status_code=404,
+            detail="Este producto no tiene QR",
+        )
+
+    db.delete(product_qr)
+    db.commit()
+
+    return {
+        "ok": True,
+        "product_id": product_id,
+    }
+
+
+@app.post("/api/sales", status_code=status.HTTP_201_CREATED)
+def create_sale(payload: SaleCreate, db: Session = Depends(get_db)):
+    product_ids = [item.product_id for item in payload.items]
+
+    products = {
+        product.id: product
+        for product in db.scalars(
+            select(Product).where(Product.id.in_(product_ids))
+        ).all()
+    }
+
+    if len(products) != len(set(product_ids)):
+        raise HTTPException(
+            status_code=404,
+            detail="Uno o más productos no existen",
+        )
+
+    total = Decimal("0")
+
+    for item in payload.items:
+        product = products[item.product_id]
+
+        if product.stock < item.quantity:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Stock insuficiente para {product.name}",
+            )
+
+        total += product.price * item.quantity
+
+    next_sale_id = (
+        db.scalar(
+            select(Sale.id).order_by(Sale.id.desc())
+        ) or 0
+    ) + 1
+
+    sale = Sale(
+        number=f"V-{next_sale_id:05d}",
+        customer_name=payload.customer_name,
+        payment_method=payload.payment_method,
+        total=total,
+        status="completada",
+    )
+
+    db.add(sale)
+    db.flush()
+
+    for item in payload.items:
+        product = products[item.product_id]
+
+        previous_stock = product.stock
+        new_stock = previous_stock - item.quantity
+
+        sale_item = SaleItem(
+            sale=sale,
+            product=product,
+            quantity=item.quantity,
+            unit_price=product.price,
+        )
+
+        movement = InventoryMovement(
+            product=product,
+            movement_type="SALE",
+            quantity=-item.quantity,
+            previous_stock=previous_stock,
+            new_stock=new_stock,
+            reference_type="SALE",
+            reference_id=sale.id,
+            notes=f"Venta {sale.number}",
+        )
+
+        product.stock = new_stock
+
+        db.add(sale_item)
+        db.add(movement)
+
+    try:
+        db.commit()
+        db.refresh(sale)
+    except Exception:
+        db.rollback()
+        raise
+
+    return {
+        "id": sale.id,
+        "number": sale.number,
+        "total": sale.total,
+        "status": sale.status,
+    }
+
+@app.get("/api/sales")
+def list_sales(db: Session = Depends(get_db)):
+    return db.scalars(select(Sale).order_by(Sale.created_at.desc())).all()
+
+
+@app.post("/api/expenses", status_code=status.HTTP_201_CREATED)
+def create_expense(payload: ExpenseCreate, db: Session = Depends(get_db)):
+    expense = Expense(**payload.model_dump())
+    db.add(expense)
+    db.commit()
+    db.refresh(expense)
+    return expense
+
+
+@app.get("/api/expenses")
+def list_expenses(db: Session = Depends(get_db)):
+    return db.scalars(select(Expense).order_by(Expense.created_at.desc())).all()
+
+
+
+@app.get("/api/inventory/movements")
+def list_inventory_movements(db: Session = Depends(get_db)):
+    movements = db.scalars(
+        select(InventoryMovement)
+        .order_by(InventoryMovement.created_at.desc())
+    ).all()
+
+    return [
+        {
+            "id": movement.id,
+            "product_id": movement.product_id,
+            "product_name": movement.product.name,
+            "movement_type": movement.movement_type,
+            "quantity": movement.quantity,
+            "previous_stock": movement.previous_stock,
+            "new_stock": movement.new_stock,
+            "reference_type": movement.reference_type,
+            "reference_id": movement.reference_id,
+            "notes": movement.notes,
+            "created_at": movement.created_at,
+        }
+        for movement in movements
+    ]
+
+
+
+@app.post("/api/inventory/adjustments", status_code=status.HTTP_201_CREATED)
+def create_inventory_adjustment(
+    payload: InventoryAdjustmentCreate,
+    db: Session = Depends(get_db),
+):
+    allowed_types = {
+        "PURCHASE",
+        "ADJUSTMENT_IN",
+        "ADJUSTMENT_OUT",
+        "LOSS",
+    }
+
+    movement_type = payload.movement_type.upper().strip()
+
+    if movement_type not in allowed_types:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Tipo de movimiento inválido. "
+                "Usa PURCHASE, ADJUSTMENT_IN, ADJUSTMENT_OUT o LOSS."
+            ),
+        )
+
+    product = db.get(Product, payload.product_id)
+
+    if not product or not product.active:
+        raise HTTPException(
+            status_code=404,
+            detail="Producto no encontrado",
+        )
+
+    previous_stock = product.stock
+
+    if movement_type in {"PURCHASE", "ADJUSTMENT_IN"}:
+        signed_quantity = payload.quantity
+    else:
+        signed_quantity = -payload.quantity
+
+    new_stock = previous_stock + signed_quantity
+
+    if new_stock < 0:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Stock insuficiente para {product.name}",
+        )
+
+    movement = InventoryMovement(
+        product=product,
+        movement_type=movement_type,
+        quantity=signed_quantity,
+        previous_stock=previous_stock,
+        new_stock=new_stock,
+        reference_type="MANUAL",
+        reference_id=None,
+        notes=payload.notes,
+    )
+
+    product.stock = new_stock
+
+    db.add(movement)
+
+    try:
+        db.commit()
+        db.refresh(movement)
+    except Exception:
+        db.rollback()
+        raise
+
+    return {
+        "id": movement.id,
+        "product_id": product.id,
+        "product_name": product.name,
+        "movement_type": movement.movement_type,
+        "quantity": movement.quantity,
+        "previous_stock": movement.previous_stock,
+        "new_stock": movement.new_stock,
+        "notes": movement.notes,
+        "created_at": movement.created_at,
+    }
+
+
+@app.post("/api/cash-register/open", status_code=status.HTTP_201_CREATED)
+def open_cash_register(
+    payload: CashRegisterOpenCreate,
+    db: Session = Depends(get_db),
+):
+    current = db.scalars(
+        select(CashRegisterSession)
+        .where(CashRegisterSession.status == "OPEN")
+        .order_by(CashRegisterSession.opened_at.desc())
+    ).first()
+
+    if current:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Ya existe una caja abierta."
+        )
+
+    session = CashRegisterSession(
+        opening_amount=payload.opening_amount,
+        expected_amount=payload.opening_amount,
+        status="OPEN",
+    )
+
+    db.add(session)
+
+    try:
+        db.commit()
+        db.refresh(session)
+    except Exception:
+        db.rollback()
+        raise
+
+    return {
+        "id": session.id,
+        "opening_amount": session.opening_amount,
+        "expected_amount": session.expected_amount,
+        "status": session.status,
+        "opened_at": session.opened_at,
+    }
+
+
+@app.get("/api/cash-register/current")
+def get_current_cash_register(
+    db: Session = Depends(get_db),
+):
+    session = db.scalars(
+        select(CashRegisterSession)
+        .where(CashRegisterSession.status == "OPEN")
+        .order_by(CashRegisterSession.opened_at.desc())
+    ).first()
+
+    if not session:
+        return {
+            "status": "CLOSED",
+            "session": None,
+        }
+
+    cash_sales = db.scalars(
+        select(Sale).where(
+            Sale.status == "completada",
+            Sale.payment_method == "efectivo",
+            Sale.created_at >= session.opened_at,
+        )
+    ).all()
+
+    expenses = db.scalars(
+        select(Expense).where(
+            Expense.created_at >= session.opened_at,
+            Expense.payment_method == "efectivo",
+        )
+    ).all()
+
+    cash_sales_total = sum(
+        (sale.total for sale in cash_sales),
+        Decimal("0")
+    )
+
+    expenses_total = sum(
+        (expense.value for expense in expenses),
+        Decimal("0")
+    )
+
+    expected_amount = (
+        session.opening_amount
+        + cash_sales_total
+        - expenses_total
+    )
+
+    return {
+        "status": session.status,
+        "session": {
+            "id": session.id,
+            "opening_amount": session.opening_amount,
+            "opened_at": session.opened_at,
+            "cash_sales_total": cash_sales_total,
+            "expenses_total": expenses_total,
+            "expected_amount": expected_amount,
+        },
+    }
+
+
+@app.post("/api/cash-register/close")
+def close_cash_register(
+    payload: CashRegisterCloseCreate,
+    db: Session = Depends(get_db),
+):
+    session = db.scalars(
+        select(CashRegisterSession)
+        .where(CashRegisterSession.status == "OPEN")
+        .order_by(CashRegisterSession.opened_at.desc())
+    ).first()
+
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No hay una caja abierta."
+        )
+
+    cash_sales = db.scalars(
+        select(Sale).where(
+            Sale.status == "completada",
+            Sale.payment_method == "efectivo",
+            Sale.created_at >= session.opened_at,
+        )
+    ).all()
+
+    expenses = db.scalars(
+        select(Expense).where(
+            Expense.created_at >= session.opened_at,
+            Expense.payment_method == "efectivo",
+        )
+    ).all()
+
+    cash_sales_total = sum(
+        (sale.total for sale in cash_sales),
+        Decimal("0")
+    )
+
+    expenses_total = sum(
+        (expense.value for expense in expenses),
+        Decimal("0")
+    )
+
+    expected_amount = (
+        session.opening_amount
+        + cash_sales_total
+        - expenses_total
+    )
+
+    difference = (
+        payload.closing_amount
+        - expected_amount
+    )
+
+    session.expected_amount = expected_amount
+    session.closing_amount = payload.closing_amount
+    session.difference = difference
+    session.status = "CLOSED"
+    session.closed_at = datetime.utcnow()
+
+    try:
+        db.commit()
+        db.refresh(session)
+    except Exception:
+        db.rollback()
+        raise
+
+    return {
+        "id": session.id,
+        "opening_amount": session.opening_amount,
+        "cash_sales_total": cash_sales_total,
+        "expenses_total": expenses_total,
+        "expected_amount": session.expected_amount,
+        "closing_amount": session.closing_amount,
+        "difference": session.difference,
+        "status": session.status,
+        "opened_at": session.opened_at,
+        "closed_at": session.closed_at,
+    }
+
+

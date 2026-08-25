@@ -1078,19 +1078,18 @@ def create_product(
         db.add(movement)
 
     try:
-        write_system_audit(
-            db=db,
-            actor=_admin,
-            action="PRODUCT_CREATE",
-            entity_type="PRODUCT",
-            entity_id=product.id,
-            entity_name=product.name,
-            description="Producto creado",
-        )
+    write_system_audit(
+        db=db,
+        actor=_admin,
+        action="PRODUCT_CREATE",
+        entity_type="PRODUCT",
+        entity_id=product.id,
+        entity_name=product.name,
+        description="Producto creado",
+    )
 
         db.commit()
         db.refresh(product)
-
     except Exception:
         db.rollback()
         raise
@@ -1270,10 +1269,7 @@ def delete_product_qr(
         )
     ],
 )
-def create_sale(
-    payload: SaleCreate,
-    db: Session = Depends(get_db),
-    actor: User = Depends(
+def create_sale(payload: SaleCreate, db: Session = Depends(get_db)    actor: User = Depends(
         require_roles(
             "ADMIN",
             "CASHIER",
@@ -1355,21 +1351,20 @@ def create_sale(
         db.add(movement)
 
     try:
-        write_system_audit(
-            db=db,
-            actor=actor,
-            action="SALE_CREATE",
-            entity_type="SALE",
-            entity_id=sale.id,
-            entity_name=sale.number,
-            description=(
-                f"Venta registrada por {sale.total}"
-            ),
-        )
+    write_system_audit(
+        db=db,
+        actor=actor,
+        action="SALE_CREATE",
+        entity_type="SALE",
+        entity_id=sale.id,
+        entity_name=sale.number,
+        description=(
+            f"Venta registrada por {sale.total}"
+        ),
+    )
 
         db.commit()
         db.refresh(sale)
-
     except Exception:
         db.rollback()
         raise
@@ -1397,10 +1392,7 @@ def list_sales(db: Session = Depends(get_db)):
         )
     ],
 )
-def create_expense(
-    payload: ExpenseCreate,
-    db: Session = Depends(get_db),
-    actor: User = Depends(
+def create_expense(payload: ExpenseCreate, db: Session = Depends(get_db)    actor: User = Depends(
         require_roles(
             "ADMIN",
         )
@@ -1525,22 +1517,21 @@ def create_inventory_adjustment(
     db.add(movement)
 
     try:
-        write_system_audit(
-            db=db,
-            actor=actor,
-            action="INVENTORY_ADJUSTMENT",
-            entity_type="INVENTORY",
-            entity_id=movement.id,
-            entity_name=product.name,
-            description=(
-                f"{movement.movement_type}: "
-                f"{movement.quantity}"
-            ),
-        )
+    write_system_audit(
+        db=db,
+        actor=actor,
+        action="INVENTORY_ADJUSTMENT",
+        entity_type="INVENTORY",
+        entity_id=movement.id,
+        entity_name=product.name,
+        description=(
+            f"{movement.movement_type}: "
+            f"{movement.quantity}"
+        ),
+    )
 
         db.commit()
         db.refresh(movement)
-
     except Exception:
         db.rollback()
         raise
@@ -1601,21 +1592,20 @@ def open_cash_register(
     db.add(session)
 
     try:
-        write_system_audit(
-            db=db,
-            actor=actor,
-            action="CASH_OPEN",
-            entity_type="CASH_REGISTER",
-            entity_id=session.id,
-            entity_name="Caja",
-            description=(
-                f"Apertura por {session.opening_amount}"
-            ),
-        )
+    write_system_audit(
+        db=db,
+        actor=actor,
+        action="CASH_OPEN",
+        entity_type="CASH_REGISTER",
+        entity_id=session.id,
+        entity_name="Caja",
+        description=(
+            f"Apertura por {session.opening_amount}"
+        ),
+    )
 
         db.commit()
         db.refresh(session)
-
     except Exception:
         db.rollback()
         raise
@@ -1765,22 +1755,21 @@ def close_cash_register(
     session.closed_at = datetime.utcnow()
 
     try:
-        write_system_audit(
-            db=db,
-            actor=actor,
-            action="CASH_CLOSE",
-            entity_type="CASH_REGISTER",
-            entity_id=session.id,
-            entity_name="Caja",
-            description=(
-                f"Cierre por {payload.closing_amount}; "
-                f"diferencia {difference}"
-            ),
-        )
+    write_system_audit(
+        db=db,
+        actor=actor,
+        action="CASH_CLOSE",
+        entity_type="CASH_REGISTER",
+        entity_id=session.id,
+        entity_name="Caja",
+        description=(
+            f"Cierre por {payload.closing_amount}; "
+            f"diferencia {difference}"
+        ),
+    )
 
         db.commit()
         db.refresh(session)
-
     except Exception:
         db.rollback()
         raise

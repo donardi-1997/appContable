@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>La Patrona VIP · Operación de discoteca</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark">G</span>
+        <div><strong>La Patrona</strong><small>VIP</small></div>
+      </div>
+      <p class="eyebrow">OPERACIÓN</p>
+      <nav id="nav">
+        <button type="button" class="nav-item active" data-view="dashboard" aria-label="Dashboard">
+          <span class="nav-icon">⌂</span>
+          <span class="nav-label">Dashboard</span>
+        </button>
+
+        <button type="button" class="nav-item" data-view="sales" aria-label="Ventas y caja">
+          <span class="nav-icon">▣</span>
+          <span class="nav-label">Ventas y caja</span>
+        </button>
+
+        <button type="button" class="nav-item" data-view="inventory" aria-label="Inventario">
+          <span class="nav-icon">◈</span>
+          <span class="nav-label">Inventario</span>
+        </button>
+
+        <button type="button" class="nav-item" data-view="expenses" aria-label="Gastos">
+          <span class="nav-icon">↘</span>
+          <span class="nav-label">Gastos</span>
+        </button>
+
+        <button type="button" class="nav-item" data-view="invoices" aria-label="Facturación electrónica">
+          <span class="nav-icon">▤</span>
+          <span class="nav-label">
+            Facturación electrónica
+          </span>
+        </button>
+      </nav>
+      <div class="sidebar-foot"><span class="status-dot"></span> Sistema en línea<br><small>Una sede · Bogotá</small>
+      </div>
+    </aside>
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">LUNES, 24 DE AGOSTO DE 2026</p>
+          <h1 id="view-title">Resumen de hoy</h1>
+        </div>
+        <div class="top-actions"><button class="icon-btn">⌕</button>
+          <div class="avatar">AG</div>
+        </div>
+      </header>
+      <div id="app"></div>
+    </main>
+  </div>
+  <div id="toast" class="toast"></div>
+  <script src="app.js"></script>
+</body>
+
+</html>
