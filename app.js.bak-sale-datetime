@@ -3565,76 +3565,6 @@ function dashboard() {
    SALES
 ============================================================ */
 
-
-function saleDateTime(value) {
-
-  if (!value) {
-    return {
-      date: '—',
-      time: '—'
-    };
-  }
-
-  let normalized =
-    String(value);
-
-  if (
-    !normalized.endsWith('Z')
-    && !/[+-]\d{2}:\d{2}$/.test(
-      normalized
-    )
-  ) {
-    normalized += 'Z';
-  }
-
-  const date =
-    new Date(normalized);
-
-  if (
-    Number.isNaN(
-      date.getTime()
-    )
-  ) {
-    return {
-      date: '—',
-      time: '—'
-    };
-  }
-
-  return {
-    date:
-      new Intl.DateTimeFormat(
-        'es-CO',
-        {
-          timeZone:
-            'America/Bogota',
-          day:
-            '2-digit',
-          month:
-            '2-digit',
-          year:
-            'numeric'
-        }
-      ).format(date),
-
-    time:
-      new Intl.DateTimeFormat(
-        'es-CO',
-        {
-          timeZone:
-            'America/Bogota',
-          hour:
-            '2-digit',
-          minute:
-            '2-digit',
-          hour12:
-            true
-        }
-      ).format(date)
-  };
-}
-
-
 function sales() {
   setTimeout(loadCashRegisterPanel, 0);
 
@@ -3883,7 +3813,6 @@ function sales() {
           <tr>
             <th>Venta</th>
             <th>Detalle</th>
-            <th>Fecha / hora</th>
             <th>Método</th>
             <th>Total</th>
             <th>Estado</th>
@@ -3895,35 +3824,9 @@ function sales() {
         <tbody>
           ${state.sales.map(s => `
             <tr>
-              <td>
-                <strong>
-                  ${s.id}
-                </strong>
-              </td>
-
-              <td>
-                ${s.detail}
-              </td>
-
-              <td>
-                <div class="sale-date-cell">
-                  <strong>
-                    ${saleDateTime(
-                      s.created_at
-                    ).date}
-                  </strong>
-
-                  <small>
-                    ${saleDateTime(
-                      s.created_at
-                    ).time}
-                  </small>
-                </div>
-              </td>
-
-              <td>
-                ${s.payment}
-              </td>
+              <td><strong>${s.id}</strong></td>
+              <td>${s.detail}</td>
+              <td>${s.payment}</td>
               <td><strong>${money(s.total)}</strong></td>
               <td>
                 <span class="pill ${String(s.status).toLowerCase().includes('fact')

@@ -11,31 +11,6 @@ class ProductCreate(BaseModel):
     minimum_stock: Decimal = Field(default=0, ge=0)
 
 
-class ProductUpdate(BaseModel):
-    name: str | None = Field(
-        default=None,
-        min_length=2,
-        max_length=160,
-    )
-    sku: str | None = Field(
-        default=None,
-        max_length=60,
-    )
-    unit: str | None = Field(
-        default=None,
-        min_length=1,
-        max_length=30,
-    )
-    price: Decimal | None = Field(
-        default=None,
-        ge=0,
-    )
-    minimum_stock: Decimal | None = Field(
-        default=None,
-        ge=0,
-    )
-
-
 class ProductRead(ProductCreate):
     id: int
     active: bool
@@ -51,53 +26,6 @@ class SaleCreate(BaseModel):
     customer_name: str = "Consumidor final"
     payment_method: str = "efectivo"
     items: list[SaleItemCreate] = Field(min_length=1)
-
-
-
-class OpenAccountCreate(BaseModel):
-    account_type: str = Field(
-        default="MESA",
-        min_length=2,
-        max_length=30,
-    )
-
-    label: str = Field(
-        min_length=1,
-        max_length=80,
-    )
-
-    zone: str | None = Field(
-        default=None,
-        max_length=80,
-    )
-
-    customer_name: str = Field(
-        default="Consumidor final",
-        max_length=160,
-    )
-
-
-class OpenAccountItemCreate(BaseModel):
-    product_id: int
-
-    quantity: Decimal = Field(
-        gt=0
-    )
-
-
-class OpenAccountCloseCreate(BaseModel):
-    payment_method: str = Field(
-        default="efectivo",
-        min_length=2,
-        max_length=30,
-    )
-
-
-class SaleCancelCreate(BaseModel):
-    reason: str = Field(
-        min_length=4,
-        max_length=500,
-    )
 
 
 class ExpenseCreate(BaseModel):

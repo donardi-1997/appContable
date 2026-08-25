@@ -93,13 +93,6 @@ class OpenAccountCloseCreate(BaseModel):
     )
 
 
-class SaleCancelCreate(BaseModel):
-    reason: str = Field(
-        min_length=4,
-        max_length=500,
-    )
-
-
 class ExpenseCreate(BaseModel):
     concept: str = Field(min_length=2, max_length=160)
     provider: str | None = None
