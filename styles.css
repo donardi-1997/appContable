@@ -1216,7 +1216,7 @@ textarea {
   pointer-events: none;
 }
 
-.stock-notification-panel {
+.stock-notification-panel:not([hidden]) {
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
@@ -1230,6 +1230,10 @@ textarea {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.stock-notification-panel[hidden] {
+  display: none !important;
 }
 
 .stock-notification-panel-head {
