@@ -6,8 +6,11 @@ import io
 import os
 import secrets
 from decimal import Decimal
-from fastapi import Cookie, Depends, FastAPI, Header, HTTPException, Response, status
+from pathlib import Path
+from fastapi import Cookie, Depends, FastAPI, Header, HTTPException, Response, UploadFile, File, status
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -15,17 +18,29 @@ import qrcode
 import jwt
 
 from .db import Base, engine, get_db
-from .models import CashRegisterSession, Expense, InventoryMovement, Product, ProductQR, Sale, SaleItem, User, UserAuditLog, SystemAuditLog, OpenAccount, OpenAccountItem
+from .models import (
+    CashRegisterSession, CompanyInfo, ElectronicInvoice,
+    Expense, InventoryHistory, InventoryMovement, Product, ProductQR,
+    Sale, SaleItem, User, UserAuditLog, SystemAuditLog,
+    OpenAccount, OpenAccountItem, Supplier, Purchase, PurchaseItem,
+)
 from .schemas import (
     CashRegisterCloseCreate,
     CashRegisterOpenCreate,
+    CompanyInfoCreate,
+    CompanyInfoUpdate,
+    ElectronicInvoiceCreate,
+    ElectronicInvoiceFilter,
     ExpenseCreate,
     InventoryAdjustmentCreate,
     LoginCreate,
     ProductCreate,
+    ProductImageUpdate,
     ProductUpdate,
+    QRResolveRequest,
     SaleCreate,
     ProductRead,
+    TaxConfigUpdate,
     UserActiveUpdate,
     UserCreate,
 
@@ -34,7 +49,22 @@ from .schemas import (
     OpenAccountCloseCreate,
 
     SaleCancelCreate,
+    SupplierCreate,
+    SupplierUpdate,
+    PurchaseCreate,
 )
+from .services.file_storage import (
+    delete_image,
+    get_image_full_path,
+    get_image_url,
+    save_image,
+    validate_image,
+    ALLOWED_IMAGE_EXTENSIONS,
+    ALLOWED_IMAGE_MIMES,
+    MAX_IMAGE_SIZE,
+)
+from .services.invoice_provider import InvoiceItemData
+from .services.mock_provider import MockElectronicInvoiceProvider
 
 Base.metadata.create_all(bind=engine)
 app = FastAPI(title="La Patrona VIP API", version="0.1.0")
@@ -43,11 +73,54 @@ app.add_middleware(
     allow_origins=[
         "http://127.0.0.1:5500",
         "http://localhost:5500",
+        "http://127.0.0.1:8000",
+        "http://localhost:8000",
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+UPLOAD_DIR = Path(__file__).resolve().parent.parent / "uploads"
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
+
+FRONTEND_DIR = Path(__file__).resolve().parent.parent.parent
+app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="frontend")
+
+
+@app.get("/", include_in_schema=False)
+def serve_index():
+    return FileResponse(str(FRONTEND_DIR / "index.html"))
+
+
+@app.get("/app.js", include_in_schema=False)
+def serve_app_js():
+    return FileResponse(str(FRONTEND_DIR / "app.js"), media_type="application/javascript")
+
+
+@app.get("/styles.css", include_in_schema=False)
+def serve_styles_css():
+    return FileResponse(str(FRONTEND_DIR / "styles.css"), media_type="text/css")
+
+invoice_provider_type = os.getenv(
+    "ELECTRONIC_INVOICE_PROVIDER", "mock"
+).strip().lower()
+
+
+def _build_invoice_provider():
+    if invoice_provider_type == "dian":
+        try:
+            from .services.dian.config import DIANConfig
+            from .services.dian.provider import DianElectronicInvoiceProvider
+            config = DIANConfig()
+            return DianElectronicInvoiceProvider(config=config)
+        except Exception:
+            return MockElectronicInvoiceProvider()
+    return MockElectronicInvoiceProvider()
+
+
+invoice_provider = _build_invoice_provider()
 
 
 ADMIN_API_KEY = os.getenv(
@@ -1038,6 +1111,505 @@ def health() -> dict[str, str]:
     return {"status": "ok", "environment": "development"}
 
 
+
+
+# ============================================================
+# SUPPLIERS
+# ============================================================
+
+@app.get("/api/suppliers")
+def list_suppliers(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_roles("ADMIN")
+    ),
+):
+
+    suppliers = db.scalars(
+        select(Supplier)
+        .order_by(Supplier.name.asc())
+    ).all()
+
+    return {
+        "suppliers": [
+            {
+                "id": supplier.id,
+                "name": supplier.name,
+                "document": supplier.document,
+                "phone": supplier.phone,
+                "email": supplier.email,
+                "address": supplier.address,
+                "contact_name": supplier.contact_name,
+                "notes": supplier.notes,
+                "active": supplier.active,
+                "created_at": supplier.created_at,
+            }
+            for supplier in suppliers
+        ]
+    }
+
+
+@app.post("/api/suppliers")
+def create_supplier(
+    payload: SupplierCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_roles("ADMIN")
+    ),
+):
+
+    supplier = Supplier(
+        name=payload.name.strip(),
+        document=(
+            payload.document.strip()
+            if payload.document
+            else None
+        ),
+        phone=(
+            payload.phone.strip()
+            if payload.phone
+            else None
+        ),
+        email=(
+            payload.email.strip()
+            if payload.email
+            else None
+        ),
+        address=(
+            payload.address.strip()
+            if payload.address
+            else None
+        ),
+        contact_name=(
+            payload.contact_name.strip()
+            if payload.contact_name
+            else None
+        ),
+        notes=(
+            payload.notes.strip()
+            if payload.notes
+            else None
+        ),
+    )
+
+    db.add(supplier)
+    db.flush()
+
+    db.add(
+        SystemAuditLog(
+            actor_user_id=current_user.id,
+            actor_name=current_user.full_name,
+            actor_role=current_user.role,
+            action="SUPPLIER_CREATE",
+            entity_type="supplier",
+            entity_id=str(supplier.id),
+            entity_name=supplier.name,
+            description=(
+                f"Proveedor creado: {supplier.name}"
+            ),
+        )
+    )
+
+    db.commit()
+    db.refresh(supplier)
+
+    return {
+        "id": supplier.id,
+        "name": supplier.name,
+        "document": supplier.document,
+        "phone": supplier.phone,
+        "email": supplier.email,
+        "address": supplier.address,
+        "contact_name": supplier.contact_name,
+        "notes": supplier.notes,
+        "active": supplier.active,
+        "created_at": supplier.created_at,
+    }
+
+
+@app.patch("/api/suppliers/{supplier_id}")
+def update_supplier(
+    supplier_id: int,
+    payload: SupplierUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_roles("ADMIN")
+    ),
+):
+
+    supplier = db.get(
+        Supplier,
+        supplier_id,
+    )
+
+    if not supplier:
+        raise HTTPException(
+            status_code=404,
+            detail="Proveedor no encontrado.",
+        )
+
+    values = payload.model_dump(
+        exclude_unset=True
+    )
+
+    for field, value in values.items():
+
+        if isinstance(value, str):
+            value = value.strip()
+
+        setattr(
+            supplier,
+            field,
+            value,
+        )
+
+    db.add(
+        SystemAuditLog(
+            actor_user_id=current_user.id,
+            actor_name=current_user.full_name,
+            actor_role=current_user.role,
+            action="SUPPLIER_UPDATE",
+            entity_type="supplier",
+            entity_id=str(supplier.id),
+            entity_name=supplier.name,
+            description=(
+                f"Proveedor actualizado: {supplier.name}"
+            ),
+        )
+    )
+
+    db.commit()
+    db.refresh(supplier)
+
+    return {
+        "id": supplier.id,
+        "name": supplier.name,
+        "document": supplier.document,
+        "phone": supplier.phone,
+        "email": supplier.email,
+        "address": supplier.address,
+        "contact_name": supplier.contact_name,
+        "notes": supplier.notes,
+        "active": supplier.active,
+        "created_at": supplier.created_at,
+    }
+
+
+# ============================================================
+# PURCHASES
+# ============================================================
+
+@app.get("/api/purchases")
+def list_purchases(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_roles("ADMIN")
+    ),
+):
+
+    purchases = db.scalars(
+        select(Purchase)
+        .order_by(Purchase.created_at.desc())
+    ).all()
+
+    return {
+        "purchases": [
+            {
+                "id": purchase.id,
+                "number": purchase.number,
+                "supplier_id": purchase.supplier_id,
+                "supplier_name": (
+                    purchase.supplier.name
+                    if purchase.supplier
+                    else None
+                ),
+                "status": purchase.status,
+                "subtotal": purchase.subtotal,
+                "total": purchase.total,
+                "notes": purchase.notes,
+                "created_by_user_id": purchase.created_by_user_id,
+                "created_at": purchase.created_at,
+            }
+            for purchase in purchases
+        ]
+    }
+
+
+@app.get("/api/purchases/{purchase_id}")
+def get_purchase(
+    purchase_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_roles("ADMIN")
+    ),
+):
+
+    purchase = db.get(
+        Purchase,
+        purchase_id,
+    )
+
+    if not purchase:
+        raise HTTPException(
+            status_code=404,
+            detail="Compra no encontrada.",
+        )
+
+    return {
+        "id": purchase.id,
+        "number": purchase.number,
+        "supplier_id": purchase.supplier_id,
+        "supplier_name": (
+            purchase.supplier.name
+            if purchase.supplier
+            else None
+        ),
+        "status": purchase.status,
+        "subtotal": purchase.subtotal,
+        "total": purchase.total,
+        "notes": purchase.notes,
+        "created_by_user_id": purchase.created_by_user_id,
+        "created_at": purchase.created_at,
+        "items": [
+            {
+                "id": item.id,
+                "product_id": item.product_id,
+                "product_name": (
+                    item.product.name
+                    if item.product
+                    else None
+                ),
+                "quantity": item.quantity,
+                "unit_cost": item.unit_cost,
+                "subtotal": item.subtotal,
+            }
+            for item in purchase.items
+        ],
+    }
+
+
+@app.post("/api/purchases")
+def create_purchase(
+    payload: PurchaseCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_roles("ADMIN")
+    ),
+):
+
+    supplier = db.get(
+        Supplier,
+        payload.supplier_id,
+    )
+
+    if not supplier:
+        raise HTTPException(
+            status_code=404,
+            detail="Proveedor no encontrado.",
+        )
+
+    if not supplier.active:
+        raise HTTPException(
+            status_code=400,
+            detail="El proveedor está inactivo.",
+        )
+
+    product_ids = [
+        item.product_id
+        for item in payload.items
+    ]
+
+    if len(product_ids) != len(set(product_ids)):
+        raise HTTPException(
+            status_code=400,
+            detail="No repitas productos dentro de la misma compra.",
+        )
+
+    products = {}
+
+    for item in payload.items:
+
+        product = db.get(
+            Product,
+            item.product_id,
+        )
+
+        if not product:
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    f"Producto {item.product_id} no encontrado."
+                ),
+            )
+
+        if not product.active:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"El producto {product.name} está inactivo."
+                ),
+            )
+
+        products[item.product_id] = product
+
+    last_purchase = db.scalar(
+        select(Purchase)
+        .order_by(Purchase.id.desc())
+    )
+
+    next_number = (
+        (last_purchase.id + 1)
+        if last_purchase
+        else 1
+    )
+
+    purchase_number = (
+        f"COMP-{next_number:06d}"
+    )
+
+    purchase = Purchase(
+        number=purchase_number,
+        supplier_id=supplier.id,
+        status="RECEIVED",
+        subtotal=Decimal("0"),
+        total=Decimal("0"),
+        notes=(
+            payload.notes.strip()
+            if payload.notes
+            else None
+        ),
+        created_by_user_id=current_user.id,
+    )
+
+    db.add(purchase)
+    db.flush()
+
+    total = Decimal("0")
+
+    try:
+
+        for payload_item in payload.items:
+
+            product = products[
+                payload_item.product_id
+            ]
+
+            quantity = Decimal(
+                payload_item.quantity
+            )
+
+            unit_cost = Decimal(
+                payload_item.unit_cost
+            )
+
+            subtotal = (
+                quantity
+                * unit_cost
+            )
+
+            previous_stock = Decimal(
+                product.stock or 0
+            )
+
+            new_stock = (
+                previous_stock
+                + quantity
+            )
+
+            purchase_item = PurchaseItem(
+                purchase_id=purchase.id,
+                product_id=product.id,
+                quantity=quantity,
+                unit_cost=unit_cost,
+                subtotal=subtotal,
+            )
+
+            db.add(
+                purchase_item
+            )
+
+            product.stock = new_stock
+
+            # Costo de última compra
+            product.cost_price = unit_cost
+
+            db.add(
+                InventoryMovement(
+                    product_id=product.id,
+                    movement_type="PURCHASE",
+                    quantity=quantity,
+                    previous_stock=previous_stock,
+                    new_stock=new_stock,
+                    reference_type="PURCHASE",
+                    reference_id=purchase.id,
+                    notes=(
+                        f"Compra {purchase.number} "
+                        f"- {supplier.name}"
+                    ),
+                )
+            )
+
+            total += subtotal
+
+        purchase.subtotal = total
+        purchase.total = total
+
+        db.add(
+            SystemAuditLog(
+                actor_user_id=current_user.id,
+                actor_name=current_user.full_name,
+                actor_role=current_user.role,
+                action="PURCHASE_CREATE",
+                entity_type="purchase",
+                entity_id=str(purchase.id),
+                entity_name=purchase.number,
+                description=(
+                    f"Compra {purchase.number} "
+                    f"a {supplier.name} "
+                    f"por {total}"
+                ),
+            )
+        )
+
+        db.commit()
+
+    except Exception:
+
+        db.rollback()
+
+        raise
+
+    db.refresh(purchase)
+
+    return {
+        "id": purchase.id,
+        "number": purchase.number,
+        "supplier_id": purchase.supplier_id,
+        "supplier_name": supplier.name,
+        "status": purchase.status,
+        "subtotal": purchase.subtotal,
+        "total": purchase.total,
+        "notes": purchase.notes,
+        "created_by_user_id": purchase.created_by_user_id,
+        "created_at": purchase.created_at,
+        "items": [
+            {
+                "id": item.id,
+                "product_id": item.product_id,
+                "product_name": (
+                    item.product.name
+                    if item.product
+                    else None
+                ),
+                "quantity": item.quantity,
+                "unit_cost": item.unit_cost,
+                "subtotal": item.subtotal,
+            }
+            for item in purchase.items
+        ],
+    }
+
+
 @app.get("/api/products")
 def list_products(db: Session = Depends(get_db)):
     products = db.scalars(
@@ -1080,6 +1652,9 @@ def list_products(db: Session = Depends(get_db)):
             "minimum_stock": product.minimum_stock,
             "active": product.active,
             "has_qr": product.id in qr_product_ids,
+            "image_url": get_image_url(product.image_url),
+            "tax_rate": product.tax_rate,
+            "tax_type": product.tax_type,
         }
         for product in products
     ]
@@ -1236,6 +1811,8 @@ def update_product(
         "unit": "Unidad",
         "price": "Precio",
         "minimum_stock": "Stock mínimo",
+        "tax_rate": "Tasa de impuesto",
+        "tax_type": "Tipo de impuesto",
     }
 
     changes = []
@@ -1461,6 +2038,1061 @@ def delete_product_qr(
         "ok": True,
         "product_id": product_id,
     }
+
+
+# ============================================================
+# PRODUCT IMAGES
+# ============================================================
+
+
+@app.post(
+    "/api/products/{product_id}/image",
+    status_code=status.HTTP_200_OK,
+)
+async def upload_product_image(
+    product_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _admin: None = Depends(require_admin),
+):
+    product = db.get(Product, product_id)
+
+    if not product or not product.active:
+        raise HTTPException(
+            status_code=404,
+            detail="Producto no encontrado",
+        )
+
+    content = await file.read()
+
+    error = validate_image(
+        file.filename or "image.jpg",
+        file.content_type,
+        len(content),
+    )
+
+    if error:
+        raise HTTPException(
+            status_code=422,
+            detail=error,
+        )
+
+    if product.image_url:
+        delete_image(product.image_url)
+
+    relative_path = save_image(
+        content, file.filename or "image.jpg"
+    )
+
+    product.image_url = relative_path
+
+    write_system_audit(
+        db=db,
+        actor=None,
+        action="PRODUCT_IMAGE_UPLOAD",
+        entity_type="PRODUCT",
+        entity_id=product.id,
+        entity_name=product.name,
+        description="Imagen de producto actualizada",
+    )
+
+    try:
+        db.commit()
+        db.refresh(product)
+    except Exception:
+        db.rollback()
+        raise
+
+    return {
+        "ok": True,
+        "image_url": get_image_url(product.image_url),
+    }
+
+
+@app.delete(
+    "/api/products/{product_id}/image",
+)
+def delete_product_image(
+    product_id: int,
+    db: Session = Depends(get_db),
+    _admin: None = Depends(require_admin),
+):
+    product = db.get(Product, product_id)
+
+    if not product or not product.active:
+        raise HTTPException(
+            status_code=404,
+            detail="Producto no encontrado",
+        )
+
+    if product.image_url:
+        delete_image(product.image_url)
+        product.image_url = None
+
+        write_system_audit(
+            db=db,
+            actor=None,
+            action="PRODUCT_IMAGE_DELETE",
+            entity_type="PRODUCT",
+            entity_id=product.id,
+            entity_name=product.name,
+            description="Imagen de producto eliminada",
+        )
+
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
+
+    return {"ok": True}
+
+
+@app.patch(
+    "/api/products/{product_id}/tax",
+)
+def update_product_tax(
+    product_id: int,
+    payload: TaxConfigUpdate,
+    db: Session = Depends(get_db),
+    _admin: None = Depends(require_admin),
+):
+    product = db.get(Product, product_id)
+
+    if not product or not product.active:
+        raise HTTPException(
+            status_code=404,
+            detail="Producto no encontrado",
+        )
+
+    product.tax_rate = payload.tax_rate
+    product.tax_type = payload.tax_type.strip().upper()
+
+    write_system_audit(
+        db=db,
+        actor=None,
+        action="PRODUCT_TAX_UPDATE",
+        entity_type="PRODUCT",
+        entity_id=product.id,
+        entity_name=product.name,
+        description=(
+            f"Impuesto actualizado: "
+            f"{product.tax_rate}% {product.tax_type}"
+        ),
+    )
+
+    try:
+        db.commit()
+        db.refresh(product)
+    except Exception:
+        db.rollback()
+        raise
+
+    return {
+        "ok": True,
+        "tax_rate": product.tax_rate,
+        "tax_type": product.tax_type,
+    }
+
+
+# ============================================================
+# QR RESOLVE
+# ============================================================
+
+
+@app.post("/api/qr/resolve")
+def resolve_qr(
+    payload: QRResolveRequest,
+    db: Session = Depends(get_db),
+):
+    qr_value = payload.qr_value.strip()
+
+    product_qr = db.scalar(
+        select(ProductQR).where(
+            ProductQR.code == qr_value
+        )
+    )
+
+    if not product_qr:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "Código QR no reconocido. "
+                "Este código no corresponde a ningún "
+                "producto registrado en el sistema."
+            ),
+        )
+
+    product = db.get(
+        Product, product_qr.product_id
+    )
+
+    if not product or not product.active:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "No encontramos un producto asociado "
+                "a este código."
+            ),
+        )
+
+    qr_image = qrcode.make(product_qr.code)
+    buffer = io.BytesIO()
+    qr_image.save(buffer, format="PNG")
+    encoded = base64.b64encode(
+        buffer.getvalue()
+    ).decode("ascii")
+
+    return {
+        "valid": True,
+        "product": {
+            "id": product.id,
+            "name": product.name,
+            "sku": product.sku,
+            "unit": product.unit,
+            "price": product.price,
+            "stock": product.stock,
+            "image_url": get_image_url(
+                product.image_url
+            ),
+            "tax_rate": product.tax_rate,
+            "tax_type": product.tax_type,
+        },
+        "qr": {
+            "code": product_qr.code,
+            "created_at": product_qr.created_at,
+            "image_data_url": (
+                "data:image/png;base64," + encoded
+            ),
+        },
+    }
+
+
+# ============================================================
+# COMPANY INFO (FISCAL DATA)
+# ============================================================
+
+
+@app.get("/api/company-info")
+def get_company_info(
+    db: Session = Depends(get_db),
+    _admin: None = Depends(require_admin),
+):
+    info = db.scalar(select(CompanyInfo).limit(1))
+
+    if not info:
+        return None
+
+    return {
+        "id": info.id,
+        "company_name": info.company_name,
+        "nit": info.nit,
+        "dv": info.dv,
+        "address": info.address,
+        "municipality": info.municipality,
+        "department": info.department,
+        "country": info.country,
+        "phone": info.phone,
+        "email": info.email,
+        "regime": info.regime,
+        "responsibilities": info.responsibilities,
+        "resolution_number": info.resolution_number,
+        "resolution_prefix": info.resolution_prefix,
+        "resolution_range_from": info.resolution_range_from,
+        "resolution_range_to": info.resolution_range_to,
+        "resolution_date": info.resolution_date,
+        "software_id": info.software_id,
+        "created_at": info.created_at,
+        "updated_at": info.updated_at,
+    }
+
+
+@app.post(
+    "/api/company-info",
+    status_code=status.HTTP_201_CREATED,
+)
+def create_company_info(
+    payload: CompanyInfoCreate,
+    db: Session = Depends(get_db),
+    _admin: None = Depends(require_admin),
+):
+    existing = db.scalar(select(CompanyInfo).limit(1))
+
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Ya existe información de la empresa. "
+                "Usa PUT para actualizar."
+            ),
+        )
+
+    info = CompanyInfo(
+        company_name=payload.company_name.strip(),
+        nit=payload.nit.strip(),
+        dv=payload.dv.strip() if payload.dv else None,
+        address=payload.address.strip() if payload.address else None,
+        municipality=payload.municipality.strip() if payload.municipality else None,
+        department=payload.department.strip() if payload.department else None,
+        country=payload.country,
+        phone=payload.phone.strip() if payload.phone else None,
+        email=payload.email.strip() if payload.email else None,
+        regime=payload.regime.strip() if payload.regime else None,
+        responsibilities=payload.responsibilities,
+        resolution_number=payload.resolution_number,
+        resolution_prefix=payload.resolution_prefix,
+        resolution_range_from=payload.resolution_range_from,
+        resolution_range_to=payload.resolution_range_to,
+        resolution_date=payload.resolution_date,
+        software_id=payload.software_id,
+        software_secret=payload.software_secret,
+        certificate_path=payload.certificate_path,
+    )
+
+    db.add(info)
+
+    write_system_audit(
+        db=db,
+        actor=None,
+        action="COMPANY_INFO_CREATE",
+        entity_type="COMPANY_INFO",
+        entity_id=info.id,
+        entity_name=info.company_name,
+        description="Información fiscal de la empresa configurada",
+    )
+
+    try:
+        db.commit()
+        db.refresh(info)
+    except Exception:
+        db.rollback()
+        raise
+
+    return {
+        "ok": True,
+        "id": info.id,
+    }
+
+
+@app.put("/api/company-info")
+def update_company_info(
+    payload: CompanyInfoUpdate,
+    db: Session = Depends(get_db),
+    _admin: None = Depends(require_admin),
+):
+    info = db.scalar(select(CompanyInfo).limit(1))
+
+    if not info:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "No existe información de la empresa. "
+                "Usa POST para crear."
+            ),
+        )
+
+    data = payload.model_dump(exclude_unset=True)
+
+    for field, value in data.items():
+        if isinstance(value, str):
+            value = value.strip()
+        setattr(info, field, value)
+
+    info.updated_at = datetime.utcnow()
+
+    write_system_audit(
+        db=db,
+        actor=None,
+        action="COMPANY_INFO_UPDATE",
+        entity_type="COMPANY_INFO",
+        entity_id=info.id,
+        entity_name=info.company_name,
+        description="Información fiscal actualizada",
+    )
+
+    try:
+        db.commit()
+        db.refresh(info)
+    except Exception:
+        db.rollback()
+        raise
+
+    return {"ok": True}
+
+
+# ============================================================
+# ELECTRONIC INVOICES
+# ============================================================
+
+
+@app.get("/api/electronic-invoices")
+def list_electronic_invoices(
+    status_filter: str | None = None,
+    customer_name: str | None = None,
+    invoice_number: str | None = None,
+    limit: int = 50,
+    db: Session = Depends(get_db),
+    _admin: User | None = Depends(require_admin),
+):
+    limit = max(1, min(limit, 200))
+
+    query = select(ElectronicInvoice).order_by(
+        ElectronicInvoice.created_at.desc()
+    )
+
+    if status_filter:
+        query = query.where(
+            ElectronicInvoice.status == status_filter.upper()
+        )
+
+    if customer_name:
+        query = query.where(
+            ElectronicInvoice.customer_name.ilike(
+                f"%{customer_name}%"
+            )
+        )
+
+    if invoice_number:
+        query = query.where(
+            ElectronicInvoice.invoice_number.ilike(
+                f"%{invoice_number}%"
+            )
+        )
+
+    invoices = db.scalars(query.limit(limit)).all()
+
+    return [
+        {
+            "id": inv.id,
+            "sale_id": inv.sale_id,
+            "invoice_number": inv.invoice_number,
+            "prefix": inv.prefix,
+            "status": inv.status,
+            "provider": inv.provider,
+            "cufe": inv.cufe,
+            "customer_name": inv.customer_name,
+            "subtotal": inv.subtotal,
+            "tax_total": inv.tax_total,
+            "total": inv.total,
+            "environment": inv.environment,
+            "issued_at": inv.issued_at,
+            "created_at": inv.created_at,
+            "error_message": inv.error_message,
+        }
+        for inv in invoices
+    ]
+
+
+@app.get("/api/electronic-invoices/{invoice_id}")
+def get_electronic_invoice(
+    invoice_id: int,
+    db: Session = Depends(get_db),
+    _admin: User | None = Depends(require_admin),
+):
+    inv = db.get(ElectronicInvoice, invoice_id)
+
+    if not inv:
+        raise HTTPException(
+            status_code=404,
+            detail="Factura electrónica no encontrada",
+        )
+
+    sale = db.get(Sale, inv.sale_id)
+    sale_items = []
+    if sale:
+        for item in sale.items:
+            product = item.product
+            tax_amount = Decimal("0")
+            if product and product.tax_rate > 0:
+                tax_amount = (
+                    item.subtotal
+                    * product.tax_rate
+                    / Decimal("100")
+                )
+            sale_items.append({
+                "product_name": (
+                    product.name if product else "Producto"
+                ),
+                "quantity": item.quantity,
+                "unit_price": item.unit_price,
+                "subtotal": item.quantity * item.unit_price,
+                "tax_rate": (
+                    product.tax_rate if product else Decimal("0")
+                ),
+                "tax_amount": tax_amount,
+                "tax_type": (
+                    product.tax_type if product else "IVA"
+                ),
+            })
+
+    return {
+        "id": inv.id,
+        "sale_id": inv.sale_id,
+        "invoice_number": inv.invoice_number,
+        "prefix": inv.prefix,
+        "status": inv.status,
+        "provider": inv.provider,
+        "provider_reference": inv.provider_reference,
+        "cufe": inv.cufe,
+        "qr_data": inv.qr_data,
+        "xml_url": inv.xml_url,
+        "pdf_url": inv.pdf_url,
+        "dian_response": inv.dian_response,
+        "error_message": inv.error_message,
+        "customer_name": inv.customer_name,
+        "customer_document_type": inv.customer_document_type,
+        "customer_document_number": inv.customer_document_number,
+        "customer_email": inv.customer_email,
+        "customer_address": inv.customer_address,
+        "customer_phone": inv.customer_phone,
+        "subtotal": inv.subtotal,
+        "tax_total": inv.tax_total,
+        "total": inv.total,
+        "environment": inv.environment,
+        "issued_at": inv.issued_at,
+        "created_at": inv.created_at,
+        "updated_at": inv.updated_at,
+        "items": sale_items,
+    }
+
+
+@app.post(
+    "/api/electronic-invoices",
+    status_code=status.HTTP_201_CREATED,
+)
+def create_electronic_invoice(
+    payload: ElectronicInvoiceCreate,
+    db: Session = Depends(get_db),
+    _admin: User | None = Depends(require_admin),
+):
+    sale = db.get(Sale, payload.sale_id)
+
+    if not sale:
+        raise HTTPException(
+            status_code=404,
+            detail="Venta no encontrada",
+        )
+
+    if str(sale.status).upper() in {"ANULADA", "CANCELLED"}:
+        raise HTTPException(
+            status_code=409,
+            detail="No se puede facturar una venta anulada",
+        )
+
+    existing = db.scalar(
+        select(ElectronicInvoice).where(
+            ElectronicInvoice.sale_id == sale.id,
+            ElectronicInvoice.status.in_(
+                [
+                    "DRAFT",
+                    "GENERATED",
+                    "SIGNED",
+                    "SENDING",
+                    "PENDING",
+                    "SENT",
+                    "ACCEPTED",
+                ]
+            ),
+        )
+    )
+
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Esta venta ya tiene una factura "
+                f"electrónica: {existing.invoice_number} "
+                f"(estado: {existing.status})"
+            ),
+        )
+
+    company = db.scalar(select(CompanyInfo).limit(1))
+    prefix = "FE"
+    next_number = 1
+
+    if company and company.resolution_prefix:
+        prefix = company.resolution_prefix
+
+    last_inv = db.scalar(
+        select(ElectronicInvoice)
+        .where(ElectronicInvoice.prefix == prefix)
+        .order_by(ElectronicInvoice.id.desc())
+    )
+
+    if last_inv:
+        try:
+            last_num = int(
+                last_inv.invoice_number.replace(
+                    f"{prefix}", ""
+                )
+            )
+            next_number = last_num + 1
+        except ValueError:
+            next_number = last_inv.id + 1
+
+    invoice_number = f"{prefix}{next_number:06d}"
+
+    subtotal = Decimal("0")
+    tax_total = Decimal("0")
+    items_data = []
+
+    for sale_item in sale.items:
+        product = sale_item.product
+        item_subtotal = (
+            sale_item.quantity * sale_item.unit_price
+        )
+        item_tax = Decimal("0")
+        item_tax_rate = Decimal("0")
+        item_tax_type = "IVA"
+
+        if product:
+            item_tax_rate = product.tax_rate or Decimal("0")
+            item_tax_type = product.tax_type or "IVA"
+            if item_tax_rate > 0:
+                item_tax = (
+                    item_subtotal
+                    * item_tax_rate
+                    / Decimal("100")
+                )
+
+        subtotal += item_subtotal
+        tax_total += item_tax
+
+        items_data.append(
+            InvoiceItemData(
+                product_name=(
+                    product.name if product else "Producto"
+                ),
+                quantity=sale_item.quantity,
+                unit_price=sale_item.unit_price,
+                subtotal=item_subtotal,
+                tax_rate=item_tax_rate,
+                tax_amount=item_tax,
+                tax_type=item_tax_type,
+            )
+        )
+
+    total = subtotal + tax_total
+
+    customer_name = (
+        payload.customer_name
+        or sale.customer_name
+        or "Consumidor final"
+    )
+
+    env = os.getenv(
+        "ELECTRONIC_INVOICE_ENV", "sandbox"
+    ).strip()
+
+    provider_name = invoice_provider_type
+
+    inv = ElectronicInvoice(
+        sale_id=sale.id,
+        invoice_number=invoice_number,
+        prefix=prefix,
+        status="DRAFT",
+        provider=provider_name,
+        customer_name=customer_name,
+        customer_document_type=payload.customer_document_type,
+        customer_document_number=payload.customer_document_number,
+        customer_email=payload.customer_email,
+        customer_address=payload.customer_address,
+        customer_phone=payload.customer_phone,
+        subtotal=subtotal,
+        tax_total=tax_total,
+        total=total,
+        environment=env,
+    )
+
+    db.add(inv)
+    db.flush()
+
+    write_system_audit(
+        db=db,
+        actor=_admin,
+        action="ELECTRONIC_INVOICE_CREATE",
+        entity_type="ELECTRONIC_INVOICE",
+        entity_id=inv.id,
+        entity_name=invoice_number,
+        description=(
+            f"Factura electrónica {invoice_number} "
+            f"creada para venta {sale.number}"
+        ),
+    )
+
+    try:
+        result = invoice_provider.create_invoice(
+            invoice_number=invoice_number,
+            prefix=prefix,
+            customer_name=customer_name,
+            customer_document_type=payload.customer_document_type,
+            customer_document_number=payload.customer_document_number,
+            customer_email=payload.customer_email,
+            customer_address=payload.customer_address,
+            customer_phone=payload.customer_phone,
+            items=items_data,
+            subtotal=subtotal,
+            tax_total=tax_total,
+            total=total,
+            environment=env,
+        )
+
+        if result.success:
+            inv.status = result.status
+            inv.provider_reference = result.provider_reference
+            inv.cufe = result.cufe
+            inv.qr_data = result.qr_data
+            inv.xml_url = result.xml_url
+            inv.pdf_url = result.pdf_url
+            inv.dian_response = (
+                str(result.dian_response)
+                if result.dian_response
+                else None
+            )
+            inv.issued_at = result.issued_at
+
+            write_system_audit(
+                db=db,
+                actor=_admin,
+                action="ELECTRONIC_INVOICE_SENT",
+                entity_type="ELECTRONIC_INVOICE",
+                entity_id=inv.id,
+                entity_name=invoice_number,
+                description=(
+                    f"Factura {invoice_number} "
+                    f"enviada. Estado: {result.status}"
+                ),
+            )
+        else:
+            inv.status = "ERROR"
+            inv.error_message = result.error_message
+
+            write_system_audit(
+                db=db,
+                actor=_admin,
+                action="ELECTRONIC_INVOICE_ERROR",
+                entity_type="ELECTRONIC_INVOICE",
+                entity_id=inv.id,
+                entity_name=invoice_number,
+                description=(
+                    f"Error en factura {invoice_number}: "
+                    f"{result.error_message}"
+                ),
+            )
+
+        db.commit()
+        db.refresh(inv)
+
+    except Exception as e:
+        inv.status = "ERROR"
+        inv.error_message = str(e)
+        db.commit()
+        db.refresh(inv)
+
+    return {
+        "id": inv.id,
+        "invoice_number": inv.invoice_number,
+        "prefix": inv.prefix,
+        "status": inv.status,
+        "provider": inv.provider,
+        "cufe": inv.cufe,
+        "subtotal": inv.subtotal,
+        "tax_total": inv.tax_total,
+        "total": inv.total,
+        "environment": inv.environment,
+        "error_message": inv.error_message,
+        "created_at": inv.created_at,
+    }
+
+
+@app.get(
+    "/api/electronic-invoices/{invoice_id}/status"
+)
+def get_electronic_invoice_status(
+    invoice_id: int,
+    db: Session = Depends(get_db),
+    _admin: User | None = Depends(require_admin),
+):
+    inv = db.get(ElectronicInvoice, invoice_id)
+
+    if not inv:
+        raise HTTPException(
+            status_code=404,
+            detail="Factura electrónica no encontrada",
+        )
+
+    if (
+        inv.provider_reference
+        and inv.status not in {"ACCEPTED", "REJECTED"}
+    ):
+        try:
+            result = invoice_provider.get_invoice_status(
+                inv.provider_reference
+            )
+            inv.status = result.status
+            inv.updated_at = datetime.utcnow()
+            db.commit()
+        except Exception:
+            pass
+
+    return {
+        "id": inv.id,
+        "invoice_number": inv.invoice_number,
+        "status": inv.status,
+        "cufe": inv.cufe,
+        "environment": inv.environment,
+        "error_message": inv.error_message,
+    }
+
+
+@app.post(
+    "/api/electronic-invoices/{invoice_id}/send",
+    status_code=status.HTTP_200_OK,
+)
+def send_electronic_invoice(
+    invoice_id: int,
+    db: Session = Depends(get_db),
+    _admin: User | None = Depends(require_admin),
+):
+    inv = db.get(ElectronicInvoice, invoice_id)
+
+    if not inv:
+        raise HTTPException(
+            status_code=404,
+            detail="Factura electrónica no encontrada",
+        )
+
+    retryable = {"DRAFT", "GENERATED", "SIGNED", "ERROR"}
+
+    if inv.status not in retryable:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"La factura {inv.invoice_number} está en estado "
+                f"'{inv.status}' y no puede ser reenviada."
+            ),
+        )
+
+    sale = db.get(Sale, inv.sale_id)
+    if not sale or str(sale.status).upper() in {"ANULADA", "CANCELLED"}:
+        raise HTTPException(
+            status_code=409,
+            detail="La venta asociada está anulada.",
+        )
+
+    items_data = []
+    subtotal = Decimal("0")
+    tax_total = Decimal("0")
+
+    for sale_item in sale.items:
+        product = sale_item.product
+        item_subtotal = sale_item.quantity * sale_item.unit_price
+        item_tax = Decimal("0")
+        item_tax_rate = Decimal("0")
+        item_tax_type = "IVA"
+
+        if product:
+            item_tax_rate = product.tax_rate or Decimal("0")
+            item_tax_type = product.tax_type or "IVA"
+            if item_tax_rate > 0:
+                item_tax = item_subtotal * item_tax_rate / Decimal("100")
+
+        subtotal += item_subtotal
+        tax_total += item_tax
+
+        items_data.append(
+            InvoiceItemData(
+                product_name=product.name if product else "Producto",
+                quantity=sale_item.quantity,
+                unit_price=sale_item.unit_price,
+                subtotal=item_subtotal,
+                tax_rate=item_tax_rate,
+                tax_amount=item_tax,
+                tax_type=item_tax_type,
+            )
+        )
+
+    total = subtotal + tax_total
+    env = inv.environment or "sandbox"
+    provider_name = invoice_provider_type
+
+    inv.status = "SENDING"
+    inv.provider = provider_name
+    inv.updated_at = datetime.utcnow()
+    db.commit()
+
+    write_system_audit(
+        db=db,
+        actor=_admin,
+        action="ELECTRONIC_INVOICE_SEND_ATTEMPT",
+        entity_type="ELECTRONIC_INVOICE",
+        entity_id=inv.id,
+        entity_name=inv.invoice_number,
+        description=f"Reintento de envío de factura {inv.invoice_number}",
+    )
+
+    try:
+        result = invoice_provider.create_invoice(
+            invoice_number=inv.invoice_number,
+            prefix=inv.prefix,
+            customer_name=inv.customer_name,
+            customer_document_type=inv.customer_document_type,
+            customer_document_number=inv.customer_document_number,
+            customer_email=inv.customer_email,
+            customer_address=inv.customer_address,
+            customer_phone=inv.customer_phone,
+            items=items_data,
+            subtotal=subtotal,
+            tax_total=tax_total,
+            total=total,
+            environment=env,
+        )
+
+        if result.success:
+            inv.status = result.status
+            inv.provider_reference = result.provider_reference
+            inv.cufe = result.cufe
+            inv.qr_data = result.qr_data
+            inv.xml_url = result.xml_url
+            inv.pdf_url = result.pdf_url
+            inv.dian_response = (
+                str(result.dian_response)
+                if result.dian_response
+                else None
+            )
+            inv.issued_at = result.issued_at
+            inv.error_message = None
+
+            write_system_audit(
+                db=db,
+                actor=_admin,
+                action="ELECTRONIC_INVOICE_SENT",
+                entity_type="ELECTRONIC_INVOICE",
+                entity_id=inv.id,
+                entity_name=inv.invoice_number,
+                description=f"Factura {inv.invoice_number} enviada. Estado: {result.status}",
+            )
+        else:
+            inv.status = "ERROR"
+            inv.error_message = result.error_message
+
+            write_system_audit(
+                db=db,
+                actor=_admin,
+                action="ELECTRONIC_INVOICE_ERROR",
+                entity_type="ELECTRONIC_INVOICE",
+                entity_id=inv.id,
+                entity_name=inv.invoice_number,
+                description=f"Error en factura {inv.invoice_number}: {result.error_message}",
+            )
+
+        db.commit()
+        db.refresh(inv)
+
+    except Exception as e:
+        inv.status = "ERROR"
+        inv.error_message = str(e)
+        db.commit()
+        db.refresh(inv)
+
+    return {
+        "id": inv.id,
+        "invoice_number": inv.invoice_number,
+        "status": inv.status,
+        "cufe": inv.cufe,
+        "environment": inv.environment,
+        "error_message": inv.error_message,
+    }
+
+
+@app.get(
+    "/api/electronic-invoices/{invoice_id}/xml",
+)
+def get_electronic_invoice_xml(
+    invoice_id: int,
+    db: Session = Depends(get_db),
+    _admin: User | None = Depends(require_admin),
+):
+    inv = db.get(ElectronicInvoice, invoice_id)
+
+    if not inv:
+        raise HTTPException(
+            status_code=404,
+            detail="Factura electrónica no encontrada",
+        )
+
+    xml = invoice_provider.get_xml(inv.provider_reference or "")
+    if not xml:
+        raise HTTPException(
+            status_code=404,
+            detail="XML no disponible para esta factura.",
+        )
+
+    return Response(
+        content=xml,
+        media_type="application/xml",
+        headers={
+            "Content-Disposition": f'attachment; filename="{inv.invoice_number}.xml"'
+        },
+    )
+
+
+@app.post(
+    "/api/sales/{sale_id}/electronic-invoice",
+    status_code=status.HTTP_201_CREATED,
+)
+def generate_sale_electronic_invoice(
+    sale_id: int,
+    db: Session = Depends(get_db),
+    _admin: User | None = Depends(require_admin),
+):
+    sale = db.get(Sale, sale_id)
+
+    if not sale:
+        raise HTTPException(
+            status_code=404,
+            detail="Venta no encontrada",
+        )
+
+    existing = db.scalar(
+        select(ElectronicInvoice).where(
+            ElectronicInvoice.sale_id == sale.id,
+            ElectronicInvoice.status.in_(
+                [
+                    "DRAFT",
+                    "GENERATED",
+                    "SIGNED",
+                    "SENDING",
+                    "PENDING",
+                    "SENT",
+                    "ACCEPTED",
+                ]
+            ),
+        )
+    )
+
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Esta venta ya tiene factura electrónica: "
+                f"{existing.invoice_number}"
+            ),
+        )
+
+    invoice_payload = ElectronicInvoiceCreate(
+        sale_id=sale.id,
+        customer_name=sale.customer_name,
+    )
+
+    return create_electronic_invoice(
+        invoice_payload, db, _admin
+    )
+
+
+@app.get("/api/sales")
+def list_sales(db: Session = Depends(get_db)):
+    return db.scalars(select(Sale).order_by(Sale.created_at.desc())).all()
 
 
 @app.post(
@@ -2370,6 +4002,53 @@ def list_inventory_movements(db: Session = Depends(get_db)):
             "created_at": movement.created_at,
         }
         for movement in movements
+    ]
+
+
+@app.get("/api/inventory/history")
+def list_inventory_history(
+    product_id: int | None = None,
+    period_from: str | None = None,
+    period_to: str | None = None,
+    source: str | None = None,
+    db: Session = Depends(get_db),
+):
+    query = select(InventoryHistory)
+
+    if product_id is not None:
+        query = query.where(InventoryHistory.product_id == product_id)
+    if period_from:
+        query = query.where(InventoryHistory.period_date >= period_from)
+    if period_to:
+        query = query.where(InventoryHistory.period_date <= period_to)
+    if source:
+        query = query.where(InventoryHistory.source.contains(source))
+
+    query = query.order_by(
+        InventoryHistory.period_date.desc(),
+        InventoryHistory.product_id,
+    )
+
+    records = db.scalars(query).all()
+
+    return [
+        {
+            "id": r.id,
+            "product_id": r.product_id,
+            "product_name": r.product.name,
+            "period_date": r.period_date.isoformat() if r.period_date else None,
+            "opening_stock": float(r.opening_stock),
+            "incoming_stock": float(r.incoming_stock),
+            "closing_stock": float(r.closing_stock),
+            "units_sold": float(r.units_sold),
+            "sale_price": float(r.sale_price),
+            "total_sold": float(r.total_sold),
+            "ideal_stock": float(r.ideal_stock) if r.ideal_stock is not None else None,
+            "suggested_order": float(r.suggested_order) if r.suggested_order is not None else None,
+            "source": r.source,
+            "source_sheet": r.source_sheet,
+        }
+        for r in records
     ]
 
 
