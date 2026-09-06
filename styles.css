@@ -2702,3 +2702,1185 @@ textarea {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ============================================================
+   LA PATRONA VIP — Professional Responsive Polish v3
+   Non-breaking enhancement layer. Keep this block LAST.
+   ============================================================ */
+
+/* ─── A. REFINED VISUAL SYSTEM ─────────────────────────────── */
+:root,
+[data-theme="dark"] {
+  --content-max: 1480px;
+  --control-h: 42px;
+  --tap-target: 44px;
+  --glass: rgba(21, 16, 13, .82);
+  --surface-hover: rgba(214, 165, 66, .055);
+  --focus-ring: 0 0 0 3px rgba(214, 165, 66, .16);
+  --shadow-card: 0 1px 1px rgba(0, 0, 0, .10), 0 10px 28px rgba(0, 0, 0, .16);
+  --shadow-float: 0 18px 50px rgba(0, 0, 0, .32);
+}
+
+[data-theme="light"] {
+  --glass: rgba(255, 252, 247, .88);
+  --surface-hover: rgba(107, 16, 16, .045);
+  --focus-ring: 0 0 0 3px rgba(107, 16, 16, .10);
+  --shadow-card: 0 1px 2px rgba(70, 35, 20, .04), 0 12px 30px rgba(70, 35, 20, .08);
+  --shadow-float: 0 22px 60px rgba(70, 35, 20, .16);
+}
+
+html {
+  min-width: 320px;
+  background: var(--bg);
+}
+
+body {
+  color: var(--text);
+  background:
+    radial-gradient(circle at 85% -10%, rgba(214, 165, 66, .075), transparent 30rem),
+    radial-gradient(circle at -10% 110%, rgba(122, 20, 20, .08), transparent 34rem),
+    var(--bg);
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* ─── B. SHELL / SIDEBAR / TOPBAR ─────────────────────────── */
+.shell {
+  width: 100%;
+  align-items: stretch;
+}
+
+.sidebar {
+  width: 248px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .012), transparent 18%),
+    var(--sidebar-bg);
+  box-shadow: 8px 0 30px rgba(0, 0, 0, .08);
+}
+
+.brand {
+  padding: 26px 20px 18px;
+}
+
+.brand-mark {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12), 0 8px 24px rgba(0, 0, 0, .16);
+}
+
+#nav {
+  gap: 6px;
+  padding: 0 12px 16px;
+}
+
+.nav-item {
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 1px solid transparent;
+}
+
+.nav-item:hover {
+  border-color: rgba(214, 165, 66, .08);
+  transform: translateX(2px);
+}
+
+.nav-item.active {
+  border-color: rgba(214, 165, 66, .14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .025);
+}
+
+.main {
+  width: 100%;
+  max-width: var(--content-max);
+  margin-inline: auto;
+  padding: 34px clamp(24px, 3.2vw, 48px) 48px;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-topbar);
+  margin: -10px -12px 28px;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--r-lg);
+  background: transparent;
+  transition: background var(--t-normal), border-color var(--t-normal), box-shadow var(--t-normal);
+}
+
+@supports (backdrop-filter: blur(12px)) {
+  .topbar {
+    backdrop-filter: blur(14px) saturate(130%);
+  }
+}
+
+.topbar:hover,
+.topbar:focus-within {
+  background: var(--glass);
+  border-color: var(--line);
+  box-shadow: var(--shadow-sm);
+}
+
+.topbar-left,
+.topbar-right {
+  min-width: 0;
+}
+
+.topbar-right {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* ─── C. TYPOGRAPHY / SURFACES ─────────────────────────────── */
+h1 {
+  font-size: clamp(1.45rem, 2vw, 1.9rem);
+  letter-spacing: -.035em;
+}
+
+h2 {
+  font-size: clamp(1rem, 1.25vw, 1.125rem);
+}
+
+.card,
+.open-account-card,
+.audit-summary-card,
+.audit-event,
+.user-item,
+.movement-card {
+  border-color: var(--line);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .018), transparent 42%),
+    var(--card-bg);
+  box-shadow: var(--shadow-card);
+}
+
+.card {
+  padding: clamp(16px, 1.8vw, 22px);
+}
+
+.card-head {
+  min-width: 0;
+}
+
+.card-head>* {
+  min-width: 0;
+}
+
+.metric {
+  position: relative;
+  overflow: hidden;
+  min-height: 112px;
+  justify-content: center;
+  transition: transform var(--t-normal), border-color var(--t-normal), box-shadow var(--t-normal);
+}
+
+.metric::after {
+  content: '';
+  position: absolute;
+  inset: auto -24px -34px auto;
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  background: rgba(214, 165, 66, .055);
+  pointer-events: none;
+}
+
+.metric:hover {
+  transform: translateY(-2px);
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-card);
+}
+
+.metric .value {
+  font-size: clamp(1.35rem, 2.1vw, 1.8rem);
+}
+
+/* ─── D. CONTROLS / FORMS ─────────────────────────────────── */
+.btn,
+.input,
+select {
+  min-height: var(--control-h);
+}
+
+.btn {
+  height: var(--control-h);
+  padding-inline: 18px;
+  border-radius: 11px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .10);
+}
+
+.btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(0) scale(.985);
+}
+
+.btn.secondary {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .025), transparent), var(--surface-elevated);
+}
+
+.icon-btn {
+  width: var(--tap-target);
+  height: var(--tap-target);
+  border-radius: 10px;
+}
+
+.input,
+select,
+textarea {
+  border-radius: 11px;
+  border-color: var(--input-border);
+  background-color: var(--input-bg);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .018);
+}
+
+.input,
+select {
+  height: var(--control-h);
+}
+
+.input:hover,
+select:hover,
+textarea:hover {
+  border-color: var(--line-strong);
+}
+
+.input:focus,
+select:focus,
+textarea:focus {
+  box-shadow: var(--focus-ring);
+}
+
+.field {
+  gap: 6px;
+}
+
+.field label,
+.field>span {
+  line-height: 1.35;
+}
+
+.form-grid {
+  gap: 18px 20px;
+}
+
+/* ─── E. TOOLBARS / TABLES / ACTIONS ──────────────────────── */
+.toolbar,
+.inventory-toolbar,
+.purchases-toolbar,
+.users-toolbar,
+.audit-toolbar {
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: color-mix(in srgb, var(--card-bg) 84%, transparent);
+  box-shadow: var(--shadow-sm);
+}
+
+.toolbar>*,
+.inventory-toolbar>*,
+.purchases-toolbar>*,
+.users-toolbar>*,
+.audit-toolbar>* {
+  min-width: 0;
+}
+
+.table-wrapper,
+.table-responsive,
+.inventory-history-table,
+.sale-detail-table-wrap {
+  scrollbar-gutter: stable;
+  border-radius: var(--r-md);
+}
+
+.table {
+  font-variant-numeric: tabular-nums;
+}
+
+.table thead th {
+  height: 42px;
+  background: color-mix(in srgb, var(--surface-elevated) 92%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.table tbody td {
+  height: 46px;
+  padding-block: 10px;
+}
+
+.table tbody tr:last-child td {
+  border-bottom-color: transparent;
+}
+
+.table tbody tr:hover {
+  background: var(--surface-hover);
+}
+
+.purchases-actions,
+.user-actions,
+.product-image-actions,
+.open-account-actions,
+.modal-actions,
+.sale-quick-quantities {
+  flex-wrap: wrap;
+}
+
+/* ─── F. DROPDOWNS / MODALS / TOASTS ──────────────────────── */
+.stock-notif-panel,
+.sale-product-results {
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-float);
+}
+
+.stock-notif-panel {
+  width: min(360px, calc(100vw - 32px));
+  margin-top: 8px;
+}
+
+.modal-overlay {
+  padding: clamp(12px, 3vw, 28px);
+}
+
+.modal {
+  width: min(720px, 100%);
+  max-height: min(90dvh, 900px);
+  border-radius: 18px;
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-float);
+  overscroll-behavior: contain;
+}
+
+.modal-lg {
+  width: min(980px, 100%);
+}
+
+.toast {
+  max-width: min(420px, calc(100vw - 32px));
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-float);
+}
+
+/* ─── G. LOGIN ─────────────────────────────────────────────── */
+.login-screen {
+  background:
+    radial-gradient(circle at 50% 15%, rgba(214, 165, 66, .08), transparent 28rem),
+    radial-gradient(circle at 10% 90%, rgba(122, 20, 20, .11), transparent 30rem),
+    var(--bg);
+}
+
+.login-panel {
+  width: min(430px, 100%);
+  padding: clamp(22px, 5vw, 34px);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: var(--glass);
+  box-shadow: var(--shadow-float);
+}
+
+/* ─── H. DATA-DENSE COMPONENTS ─────────────────────────────── */
+.dashboard-chart {
+  min-width: 0;
+}
+
+.sale-product-selected,
+.user-item,
+.open-account-head,
+.movement-card-head {
+  min-width: 0;
+}
+
+.sale-product-selected>*,
+.user-item>*,
+.open-account-head>*,
+.movement-card-head>* {
+  min-width: 0;
+}
+
+.product-thumb,
+.product-thumb-empty {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+}
+
+.open-account-card,
+.audit-event,
+.user-item,
+.movement-card {
+  transition: transform var(--t-normal), border-color var(--t-normal), box-shadow var(--t-normal);
+}
+
+.open-account-card:hover,
+.audit-event:hover,
+.user-item:hover,
+.movement-card:hover {
+  transform: translateY(-1px);
+  border-color: var(--line-strong);
+}
+
+/* ─── I. RESPONSIVE — LAPTOP / TABLET ─────────────────────── */
+@media (max-width: 1180px) {
+  .main {
+    padding: 28px 24px 40px;
+  }
+
+  .sidebar {
+    width: 220px;
+  }
+
+  .grid.dashboard-main-grid,
+  .grid.twocol {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 920px) and (min-width: 721px) {
+  .sidebar {
+    width: 78px;
+    overflow-x: hidden;
+  }
+
+  .brand {
+    justify-content: center;
+    padding-inline: 10px;
+  }
+
+  .brand> :not(.brand-mark),
+  .sidebar .eyebrow,
+  .sidebar-foot,
+  .nav-label {
+    display: none;
+  }
+
+  #nav {
+    align-items: center;
+    padding-inline: 8px;
+  }
+
+  .nav-item {
+    justify-content: center;
+    width: 54px;
+    height: 48px;
+    padding: 0;
+  }
+
+  .nav-item:hover {
+    transform: none;
+  }
+
+  .nav-item.active::before {
+    left: -8px;
+  }
+
+  .nav-icon {
+    width: auto;
+    font-size: 1.05rem;
+  }
+
+  .main {
+    padding-inline: 22px;
+  }
+
+  .grid.metrics,
+  .dashboard-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ─── J. RESPONSIVE — MOBILE ───────────────────────────────── */
+@media (max-width: 720px) {
+
+  :root,
+  [data-theme="dark"],
+  [data-theme="light"] {
+    --control-h: 44px;
+  }
+
+  body {
+    overflow-x: hidden;
+  }
+
+  .shell {
+    display: block;
+  }
+
+  .sidebar {
+    width: 100%;
+    height: auto;
+    min-height: 62px;
+    position: sticky;
+    top: 0;
+    display: block;
+    overflow: visible;
+    border-right: 0;
+    border-bottom: 1px solid var(--line-strong);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, .14);
+    backdrop-filter: blur(16px);
+  }
+
+  .brand,
+  .sidebar .eyebrow,
+  .sidebar-foot {
+    display: none;
+  }
+
+  #nav {
+    width: 100%;
+    min-height: 62px;
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    gap: 4px;
+    padding: 7px 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-inline: contain;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+
+  #nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .nav-item {
+    min-width: 68px;
+    min-height: 48px;
+    flex: 0 0 auto;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    padding: 6px 9px;
+    border-radius: 10px;
+    scroll-snap-align: start;
+    font-size: 10px;
+    line-height: 1.15;
+  }
+
+  .nav-item:hover {
+    transform: none;
+  }
+
+  .nav-item.active::before {
+    display: none;
+  }
+
+  .nav-label {
+    display: block;
+    max-width: 74px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 10px;
+    color: currentColor;
+  }
+
+  .nav-icon {
+    width: auto;
+    min-height: 18px;
+    font-size: 1rem;
+    line-height: 1;
+  }
+
+  .main {
+    width: 100%;
+    max-width: none;
+    padding: 18px 14px 32px;
+  }
+
+  .topbar {
+    position: relative;
+    top: auto;
+    margin: 0 0 18px;
+    padding: 0;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 12px;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  .topbar:hover,
+  .topbar:focus-within {
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+  }
+
+  .topbar-left {
+    flex: 1 1 180px;
+  }
+
+  .topbar-right {
+    flex: 1 1 100%;
+    width: 100%;
+    justify-content: flex-start;
+    gap: 8px;
+  }
+
+  h1 {
+    font-size: clamp(1.3rem, 6vw, 1.65rem);
+  }
+
+  .grid.metrics,
+  .dashboard-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .grid.dashboard-main-grid,
+  .grid.dashboard-bottom-grid,
+  .grid.twocol,
+  .grid.users-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .card {
+    padding: 16px;
+    border-radius: 14px;
+  }
+
+  .metric {
+    min-height: 104px;
+    padding: 14px;
+  }
+
+  .metric .label {
+    line-height: 1.25;
+  }
+
+  .metric .value {
+    font-size: clamp(1.2rem, 6vw, 1.55rem);
+  }
+
+  .card-head,
+  .dashboard-welcome,
+  .sales-filter-head {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .dashboard-controls,
+  .dashboard-period-select {
+    width: 100%;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .toolbar,
+  .inventory-toolbar,
+  .purchases-toolbar,
+  .users-toolbar,
+  .audit-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .toolbar .input,
+  .inventory-toolbar .input,
+  .purchases-toolbar .input,
+  .users-toolbar .input,
+  .audit-toolbar .input {
+    width: 100%;
+    max-width: none;
+  }
+
+  .toolbar>.input:first-child,
+  .inventory-toolbar>.input:first-child,
+  .purchases-toolbar>.input:first-child,
+  .users-toolbar>.input:first-child,
+  .audit-toolbar>.input:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .table-wrapper,
+  .table-responsive,
+  .inventory-history-table,
+  .sale-detail-table-wrap {
+    width: calc(100% + 16px);
+    margin-inline: -8px;
+    padding-inline: 8px;
+    overflow-x: auto;
+  }
+
+  .table {
+    min-width: 680px;
+  }
+
+  .table thead th,
+  .table tbody td {
+    padding-inline: 10px;
+  }
+
+  .inventory-history-table {
+    display: none;
+  }
+
+  .inventory-history-mobile {
+    display: grid;
+    gap: 10px;
+  }
+
+  .movement-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sale-product-results {
+    position: static;
+    max-height: 280px;
+    margin-top: 8px;
+  }
+
+  .sale-product-selected {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .sale-cart-quantity {
+    margin-left: auto;
+  }
+
+  .open-accounts-grid,
+  .audit-detail-grid,
+  .invoice-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .audit-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .users-metrics,
+  .purchases-summary {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .user-item {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .user-actions {
+    width: 100%;
+  }
+
+  .user-actions .btn {
+    flex: 1;
+  }
+
+  .stock-notif-panel {
+    position: fixed;
+    top: 72px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-height: min(62dvh, 460px);
+  }
+
+  .modal-overlay {
+    place-items: end center;
+    padding: 10px 0 0;
+  }
+
+  .modal,
+  .modal-lg {
+    width: 100%;
+    max-height: calc(100dvh - 10px);
+    padding: 18px 16px calc(18px + env(safe-area-inset-bottom));
+    border-radius: 18px 18px 0 0;
+    border-bottom: 0;
+  }
+
+  .modal-actions {
+    position: sticky;
+    bottom: calc(-18px - env(safe-area-inset-bottom));
+    z-index: 2;
+    margin-inline: -16px;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    background: var(--surface);
+  }
+
+  .modal-actions .btn {
+    flex: 1 1 140px;
+  }
+
+  .toast {
+    left: 12px;
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    max-width: none;
+  }
+
+  .login-screen {
+    padding: 14px;
+  }
+
+  .login-panel {
+    padding: 22px 18px;
+    border-radius: 18px;
+  }
+}
+
+/* ─── K. RESPONSIVE — SMALL PHONES ─────────────────────────── */
+@media (max-width: 520px) {
+  .main {
+    padding-inline: 12px;
+  }
+
+  .topbar-right>.btn,
+  .topbar-right>.theme-toggle {
+    flex: 1 1 auto;
+  }
+
+  .toolbar,
+  .inventory-toolbar,
+  .purchases-toolbar,
+  .users-toolbar,
+  .audit-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .toolbar>*,
+  .inventory-toolbar>*,
+  .purchases-toolbar>*,
+  .users-toolbar>*,
+  .audit-toolbar>* {
+    width: 100%;
+    max-width: none;
+  }
+
+  .toolbar .btn,
+  .inventory-toolbar .btn,
+  .purchases-toolbar .btn,
+  .users-toolbar .btn,
+  .audit-toolbar .btn {
+    justify-content: center;
+  }
+
+  .card-head>.btn,
+  .card-head>.select,
+  .card-head>select {
+    width: 100%;
+  }
+
+  .purchases-actions,
+  .open-account-actions,
+  .product-image-actions {
+    width: 100%;
+  }
+
+  .purchases-actions .btn,
+  .open-account-actions .btn,
+  .product-image-actions .btn {
+    flex: 1 1 120px;
+  }
+
+  .sales-filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stock-notif-item {
+    align-items: flex-start;
+    gap: 10px;
+  }
+}
+
+@media (max-width: 390px) {
+
+  .grid.metrics,
+  .dashboard-metrics,
+  .audit-summary-grid,
+  .movement-card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .main {
+    padding: 14px 10px 28px;
+  }
+
+  .card {
+    padding: 14px;
+  }
+
+  .nav-item {
+    min-width: 62px;
+    padding-inline: 7px;
+  }
+
+  .modal,
+  .modal-lg {
+    padding-inline: 14px;
+  }
+
+  .modal-actions {
+    margin-inline: -14px;
+    padding-inline: 14px;
+  }
+}
+
+/* ─── L. ACCESSIBILITY / INPUT MODES ───────────────────────── */
+@media (hover: none) {
+
+  .nav-item:hover,
+  .metric:hover,
+  .open-account-card:hover,
+  .audit-event:hover,
+  .user-item:hover,
+  .movement-card:hover,
+  .btn:hover:not(:disabled) {
+    transform: none;
+  }
+}
+
+@media (prefers-contrast: more) {
+
+  .card,
+  .modal,
+  .toolbar,
+  .inventory-toolbar,
+  .purchases-toolbar,
+  .users-toolbar,
+  .audit-toolbar,
+  .input,
+  select,
+  textarea {
+    border-color: var(--line-strong);
+  }
+}
+
+
+/* ============================================================
+   LA PATRONA VIP — Desktop polish hotfix v2.1
+   Screenshot-driven corrections: light sidebar + compact topbar
+   ============================================================ */
+
+/* 1) Light theme: keep the dark wine sidebar readable.
+   The generic light-theme --text token is dark, so sidebar children
+   must not inherit it directly. */
+[data-theme="light"] .sidebar {
+  --sidebar-text: #fff8ed;
+  --sidebar-muted: #d9c9b5;
+  --sidebar-accent: #e0b253;
+  color: var(--sidebar-text);
+}
+
+[data-theme="light"] .sidebar .brand strong,
+[data-theme="light"] .sidebar .nav-item,
+[data-theme="light"] .sidebar .nav-label,
+[data-theme="light"] .sidebar .nav-icon,
+[data-theme="light"] .sidebar .sidebar-foot {
+  color: var(--sidebar-text) !important;
+}
+
+[data-theme="light"] .sidebar .brand small,
+[data-theme="light"] .sidebar .eyebrow {
+  color: var(--sidebar-accent) !important;
+}
+
+[data-theme="light"] .sidebar .nav-item {
+  opacity: .88;
+}
+
+[data-theme="light"] .sidebar .nav-item:hover {
+  opacity: 1;
+  color: #fff !important;
+  background: rgba(255, 248, 237, .075);
+  border-color: rgba(224, 178, 83, .16);
+}
+
+[data-theme="light"] .sidebar .nav-item.active {
+  opacity: 1;
+  color: #fff8ed !important;
+  background: linear-gradient(90deg, rgba(214, 165, 66, .15), rgba(214, 165, 66, .055));
+  border-color: rgba(224, 178, 83, .20);
+}
+
+[data-theme="light"] .sidebar .nav-item.active .nav-label,
+[data-theme="light"] .sidebar .nav-item.active .nav-icon {
+  color: #fff8ed !important;
+}
+
+/* 2) Desktop topbar: prevent account controls from becoming a tall
+   vertical column that pushes dashboard content down. */
+@media (min-width: 721px) {
+  .topbar {
+    align-items: center;
+    min-height: 64px;
+  }
+
+  .topbar-left {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .topbar-right {
+    flex: 0 0 auto;
+    width: auto !important;
+    max-width: min(48vw, 620px);
+    display: flex;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center;
+    justify-content: flex-end;
+    align-self: center;
+    gap: 10px;
+  }
+
+  .topbar-right>* {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    max-width: none;
+    margin: 0 !important;
+  }
+
+  .topbar-right .theme-toggle,
+  .topbar-right .icon-btn,
+  .topbar-right .btn {
+    min-height: 38px;
+  }
+
+  .topbar-right .stock-notifications {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .topbar-right .stock-notifications>button,
+  .topbar-right .stock-notifications>.icon-btn {
+    display: inline-grid;
+    place-items: center;
+  }
+
+  .topbar-right .stock-notif-badge {
+    top: -5px;
+    right: -6px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    font-size: 10px;
+    line-height: 18px;
+  }
+
+  /* Generic account/profile wrappers found in topbars. */
+  .topbar-right :is(.user-info, .account-info, .profile-info, .current-user, .user-profile) {
+    display: inline-flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 8px;
+    width: auto !important;
+    white-space: nowrap;
+  }
+
+  .topbar-right :is(.user-info, .account-info, .profile-info, .current-user, .user-profile)>* {
+    margin: 0 !important;
+  }
+}
+
+/* 3) Give the dashboard a denser, more intentional desktop rhythm. */
+@media (min-width: 1001px) {
+  .main {
+    padding-top: 28px;
+  }
+
+  .topbar {
+    margin-bottom: 18px;
+  }
+
+  .dashboard-welcome {
+    margin-bottom: 18px;
+  }
+
+  .dashboard-period-heading {
+    margin-bottom: 16px;
+  }
+}
+
+/* 4) Sidebar sizing: enough room for labels, without dominating desktop. */
+@media (min-width: 1181px) {
+  .sidebar {
+    width: 236px;
+  }
+}
+
+/* 5) Tablet range: do not collapse to icon-only too early. */
+@media (max-width: 1000px) and (min-width: 721px) {
+  .sidebar {
+    width: 196px;
+  }
+
+  .brand {
+    justify-content: flex-start;
+    padding-inline: 14px;
+  }
+
+  .brand> :not(.brand-mark),
+  .sidebar .eyebrow,
+  .sidebar-foot,
+  .nav-label {
+    display: initial;
+  }
+
+  .brand>div,
+  .sidebar .eyebrow,
+  .sidebar-foot,
+  .nav-label {
+    display: block;
+  }
+
+  #nav {
+    align-items: stretch;
+    padding-inline: 9px;
+  }
+
+  .nav-item {
+    justify-content: flex-start;
+    width: 100%;
+    height: auto;
+    min-height: 44px;
+    padding: 9px 10px;
+  }
+
+  .nav-icon {
+    width: 20px;
+  }
+
+  .nav-item.active::before {
+    left: 0;
+  }
+}
+
+/* 6) Small desktop / tablet topbar: allow only controlled wrapping. */
+@media (max-width: 880px) and (min-width: 721px) {
+  .topbar {
+    align-items: flex-start;
+  }
+
+  .topbar-right {
+    max-width: 52%;
+    flex-wrap: wrap !important;
+    row-gap: 7px;
+  }
+}
