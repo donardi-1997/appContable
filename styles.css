@@ -3058,6 +3058,7 @@ body.notifications-open {
   flex-direction: column;
   overflow-y: auto;
   overscroll-behavior: contain;
+  color: #fff8ed;
 }
 
 .mobile-drawer.open {
@@ -3077,25 +3078,28 @@ body.notifications-open {
 }
 
 .drawer-close-btn {
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   display: grid;
   place-items: center;
   border-radius: var(--r-sm);
   font-size: var(--text-lg);
-  color: var(--text-muted);
+  color: rgba(255, 248, 237, .65);
   cursor: pointer;
   transition: all var(--t-fast);
 }
 
 .drawer-close-btn:hover {
   background: rgba(214, 165, 66, .1);
-  color: var(--text);
+  color: #fff8ed;
 }
 
 .drawer-section {
   padding: var(--sp-4) var(--sp-4) var(--sp-1);
   font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--gold);
+  opacity: .85;
 }
 
 .drawer-nav {
@@ -3112,17 +3116,17 @@ body.notifications-open {
   border-radius: var(--r-md);
   font-size: var(--text-sm);
   font-weight: 550;
-  color: var(--text-secondary);
+  color: rgba(255, 248, 237, .82);
   transition: all var(--t-fast);
   text-align: left;
   width: 100%;
-  min-height: 44px;
+  min-height: 48px;
   cursor: pointer;
 }
 
 .drawer-item:hover {
   background: rgba(214, 165, 66, .08);
-  color: var(--text);
+  color: #fff8ed;
 }
 
 .drawer-item.active {
@@ -3138,7 +3142,7 @@ body.notifications-open {
   top: 50%;
   transform: translateY(-50%);
   width: 3px;
-  height: 60%;
+  height: 22px;
   background: var(--gold);
   border-radius: 0 2px 2px 0;
 }
@@ -3152,6 +3156,7 @@ body.notifications-open {
   text-align: center;
   font-size: var(--text-base);
   flex-shrink: 0;
+  color: rgba(214, 165, 66, .72);
 }
 
 .drawer-label {
@@ -3173,7 +3178,16 @@ body.notifications-open {
 .drawer-status {
   padding: var(--sp-3) var(--sp-3);
   font-size: var(--text-xs);
-  color: var(--text-muted);
+  color: rgba(255, 248, 237, .60);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+}
+
+.drawer-status small {
+  color: rgba(255, 248, 237, .72);
+  display: block;
+  margin-top: 2px;
 }
 
 /* Mobile user dropdown */
@@ -4350,6 +4364,56 @@ textarea:focus {
 [data-theme="light"] .sidebar .nav-item.active .nav-label,
 [data-theme="light"] .sidebar .nav-item.active .nav-icon {
   color: #fff8ed !important;
+}
+
+/* ─── MOBILE DRAWER: light-theme overrides ──────────────────
+   Drawer is always dark-surface; override light-theme inherited tokens. */
+[data-theme="light"] .mobile-drawer {
+  color: #fff8ed;
+}
+
+[data-theme="light"] .mobile-drawer .brand strong {
+  color: #fff8ed;
+}
+
+[data-theme="light"] .mobile-drawer .brand small {
+  color: var(--gold);
+}
+
+[data-theme="light"] .mobile-drawer .drawer-item {
+  color: rgba(255, 248, 237, .82);
+}
+
+[data-theme="light"] .mobile-drawer .drawer-item:hover {
+  color: #fff8ed;
+}
+
+[data-theme="light"] .mobile-drawer .drawer-item.active {
+  color: var(--gold-light);
+}
+
+[data-theme="light"] .mobile-drawer .drawer-section {
+  color: var(--gold);
+}
+
+[data-theme="light"] .mobile-drawer .drawer-close-btn {
+  color: rgba(255, 248, 237, .65);
+}
+
+[data-theme="light"] .mobile-drawer .drawer-close-btn:hover {
+  color: #fff8ed;
+}
+
+[data-theme="light"] .mobile-drawer .drawer-status {
+  color: rgba(255, 248, 237, .60);
+}
+
+[data-theme="light"] .mobile-drawer .drawer-status small {
+  color: rgba(255, 248, 237, .72);
+}
+
+[data-theme="light"] .mobile-drawer .drawer-item.danger {
+  color: var(--red);
 }
 
 /* 2) Desktop topbar: prevent account controls from becoming a tall
