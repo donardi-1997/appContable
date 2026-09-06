@@ -4177,8 +4177,10 @@ textarea:focus {
   .main {
     padding: var(--sp-3);
     padding-top: var(--sp-4);
-    padding-bottom: 80px;
+    padding-bottom: calc(72px + var(--sp-4) + env(safe-area-inset-bottom));
     min-height: 100dvh;
+    width: 100%;
+    max-width: none;
   }
 
   /* Topbar compact */
@@ -4190,19 +4192,23 @@ textarea:focus {
 
   .topbar-left {
     width: 100%;
+    display: flex;
+    flex-direction: column;
   }
 
   .topbar-left h1 {
     font-size: var(--text-xl);
+    width: 100%;
   }
 
   /* Top actions: only bell + avatar */
   .top-actions {
     display: flex;
     align-items: center;
-    gap: var(--sp-2);
+    gap: var(--sp-3);
     width: 100%;
     justify-content: flex-end;
+    flex-wrap: nowrap;
   }
 
   /* Hide desktop-only elements on mobile */
@@ -4216,6 +4222,47 @@ textarea:focus {
   .topbar-user {
     position: relative;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+  }
+
+  .topbar-user .avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: var(--wine-soft);
+    color: var(--gold-light);
+    font-weight: 700;
+    font-size: var(--text-xs);
+    flex-shrink: 0;
+  }
+
+  /* Notification button with absolute badge */
+  .stock-notification-button {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+  }
+
+  .stock-notification-badge {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 8px;
+    background: var(--red);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 16px;
+    text-align: center;
   }
 
   .mobile-user-dropdown:not([hidden]) {
@@ -4236,28 +4283,42 @@ textarea:focus {
 
   /* Grids single column */
   .grid.metrics,
+  .dashboard-metrics,
   .grid.dashboard-main-grid,
   .grid.dashboard-bottom-grid,
   .grid.twocol,
   .grid.users-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   /* Cards */
   .card {
     padding: var(--sp-4);
     border-radius: var(--r-md);
+    width: 100%;
+    min-width: 0;
   }
 
   .card-head {
     margin-bottom: var(--sp-3);
     flex-wrap: wrap;
     gap: var(--sp-2);
+    min-width: 0;
   }
 
   /* KPI cards */
+  .metric {
+    min-width: 0;
+    width: 100%;
+  }
+
   .metric .value {
     font-size: clamp(1.4rem, 6vw, 1.8rem);
+  }
+
+  /* All grid children should fill width */
+  .grid > * {
+    min-width: 0;
   }
 
   /* Tables scroll */
