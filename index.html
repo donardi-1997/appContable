@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>La Patrona VIP · Operación de discoteca</title>
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=2" />
 </head>
 
 <body class="auth-locked">
@@ -64,19 +64,14 @@
           </span>
 
           <div class="password-field">
-          <input class="input" id="login-password" name="password" type="password" autocomplete="current-password"
-            placeholder="Contraseña" required />
+            <input class="input" id="login-password" name="password" type="password" autocomplete="current-password"
+              placeholder="Contraseña" required />
 
-          <button
-            type="button"
-            class="password-toggle"
-            id="toggle-login-password"
-            aria-label="Mostrar contraseña"
-            title="Mostrar contraseña"
-          >
-            Ver
-          </button>
-        </div>
+            <button type="button" class="password-toggle" id="toggle-login-password" aria-label="Mostrar contraseña"
+              title="Mostrar contraseña">
+              Ver
+            </button>
+          </div>
         </label>
 
 
@@ -120,13 +115,7 @@
           <span class="nav-label">Inventario</span>
         </button>
 
-        <button
-          type="button"
-          class="nav-item"
-          data-view="purchases"
-          aria-label="Compras y proveedores"
-          hidden
-        >
+        <button type="button" class="nav-item" data-view="purchases" aria-label="Compras y proveedores" hidden>
           <span class="nav-icon">◇</span>
           <span class="nav-label">Compras</span>
         </button>
@@ -141,7 +130,7 @@
           <span class="nav-label">Facturación</span>
         </button>
 
-        
+
 
         <button type="button" class="nav-item" data-view="users" aria-label="Usuarios" hidden>
           <span class="nav-icon">♙</span>
@@ -158,7 +147,7 @@
         </button>
 
       </nav>
-      <div class="sidebar-foot"><span class="status-dot"></span> Sistema en línea<br><small>Una sede · Bogotá</small>
+      <div class="sidebar-foot"><span class="status-dot"></span> Sistema en línea<br><small>Una sede · Ramiriquí</small>
       </div>
     </aside>
     <main class="main">
@@ -171,30 +160,16 @@
 
           <div class="stock-notification-wrap">
 
-            <button
-              class="icon-btn stock-notification-button"
-              id="stock-notification-button"
-              type="button"
-              title="Notificaciones de inventario"
-              aria-label="Notificaciones de inventario"
-              aria-expanded="false"
-            >
+            <button class="icon-btn stock-notification-button" id="stock-notification-button" type="button"
+              title="Notificaciones de inventario" aria-label="Notificaciones de inventario" aria-expanded="false">
               🔔
 
-              <span
-                class="stock-notification-badge"
-                id="stock-notification-badge"
-                hidden
-              >
+              <span class="stock-notification-badge" id="stock-notification-badge" hidden>
                 0
               </span>
             </button>
 
-            <div
-              class="stock-notification-panel"
-              id="stock-notification-panel"
-              hidden
-            >
+            <div class="stock-notification-panel" id="stock-notification-panel" hidden>
               <div class="stock-notification-panel-head">
 
                 <div>
@@ -207,25 +182,16 @@
                   </strong>
                 </div>
 
-                <span
-                  class="pill"
-                  id="stock-notification-count"
-                >
+                <span class="pill" id="stock-notification-count">
                   0
                 </span>
 
               </div>
 
-              <div
-                id="stock-notification-list"
-                class="stock-notification-list"
-              ></div>
+              <div id="stock-notification-list" class="stock-notification-list"></div>
 
-              <button
-                class="btn secondary stock-notification-inventory"
-                id="stock-notification-inventory"
-                type="button"
-              >
+              <button class="btn secondary stock-notification-inventory" id="stock-notification-inventory"
+                type="button">
                 Ir a inventario
               </button>
 
