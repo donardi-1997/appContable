@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es" data-theme="dark">
+<html lang="es">
 
 <head>
   <meta charset="UTF-8" />
@@ -120,25 +120,9 @@
           <span class="nav-label">Inventario</span>
         </button>
 
-        <button
-          type="button"
-          class="nav-item"
-          data-view="purchases"
-          aria-label="Compras y proveedores"
-          hidden
-        >
-          <span class="nav-icon">◇</span>
-          <span class="nav-label">Compras</span>
-        </button>
-
         <button type="button" class="nav-item" data-view="expenses" aria-label="Gastos">
           <span class="nav-icon">↘</span>
           <span class="nav-label">Gastos</span>
-        </button>
-
-        <button type="button" class="nav-item" data-view="invoices" aria-label="Facturación electrónica" hidden>
-          <span class="nav-icon">◈</span>
-          <span class="nav-label">Facturación</span>
         </button>
 
         
@@ -250,11 +234,6 @@
             </div>
           </div>
 
-          <button class="theme-toggle" id="theme-toggle" type="button" title="Cambiar tema" aria-label="Cambiar tema">
-            <span class="theme-icon" id="theme-icon">☀</span>
-            <span id="theme-label">Claro</span>
-          </button>
-
           <button class="icon-btn logout-btn" id="logout-button" type="button" title="Cerrar sesión"
             aria-label="Cerrar sesión">
             ↪
@@ -266,7 +245,6 @@
     </main>
   </div>
   <div id="toast" class="toast"></div>
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <script src="app.js"></script>
 </body>
 

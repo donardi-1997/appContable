@@ -47,6 +47,108 @@ class ProductRead(ProductCreate):
     model_config = ConfigDict(from_attributes=True)
 
 
+class SupplierCreate(BaseModel):
+    name: str = Field(
+        min_length=2,
+        max_length=160,
+    )
+
+    document: str | None = Field(
+        default=None,
+        max_length=60,
+    )
+
+    phone: str | None = Field(
+        default=None,
+        max_length=40,
+    )
+
+    email: str | None = Field(
+        default=None,
+        max_length=160,
+    )
+
+    address: str | None = Field(
+        default=None,
+        max_length=250,
+    )
+
+    contact_name: str | None = Field(
+        default=None,
+        max_length=160,
+    )
+
+    notes: str | None = Field(
+        default=None,
+        max_length=1000,
+    )
+
+
+class SupplierUpdate(BaseModel):
+    name: str | None = Field(
+        default=None,
+        min_length=2,
+        max_length=160,
+    )
+
+    document: str | None = Field(
+        default=None,
+        max_length=60,
+    )
+
+    phone: str | None = Field(
+        default=None,
+        max_length=40,
+    )
+
+    email: str | None = Field(
+        default=None,
+        max_length=160,
+    )
+
+    address: str | None = Field(
+        default=None,
+        max_length=250,
+    )
+
+    contact_name: str | None = Field(
+        default=None,
+        max_length=160,
+    )
+
+    notes: str | None = Field(
+        default=None,
+        max_length=1000,
+    )
+
+    active: bool | None = None
+
+
+class PurchaseItemCreate(BaseModel):
+    product_id: int
+
+    quantity: Decimal = Field(
+        gt=0
+    )
+
+    unit_cost: Decimal = Field(
+        ge=0
+    )
+
+
+class PurchaseCreate(BaseModel):
+    supplier_id: int
+
+    notes: str | None = Field(
+        default=None,
+        max_length=1000,
+    )
+
+    items: list[PurchaseItemCreate] = Field(
+        min_length=1
+    )
+
+
 class SaleItemCreate(BaseModel):
     product_id: int
     quantity: Decimal = Field(gt=0)
@@ -166,3 +268,80 @@ class UserCreate(BaseModel):
 
 class UserActiveUpdate(BaseModel):
     active: bool
+
+
+class QRResolveRequest(BaseModel):
+    qr_value: str = Field(min_length=1, max_length=200)
+
+
+class ProductImageUpdate(BaseModel):
+    image_url: str | None = Field(
+        default=None,
+        max_length=500,
+    )
+
+
+class TaxConfigUpdate(BaseModel):
+    tax_rate: Decimal = Field(default=Decimal("19.00"), ge=0, le=100)
+    tax_type: str = Field(default="IVA", max_length=20)
+
+
+class CompanyInfoCreate(BaseModel):
+    company_name: str = Field(min_length=2, max_length=200)
+    nit: str = Field(min_length=3, max_length=30)
+    dv: str | None = Field(default=None, max_length=5)
+    address: str | None = Field(default=None, max_length=250)
+    municipality: str | None = Field(default=None, max_length=100)
+    department: str | None = Field(default=None, max_length=100)
+    country: str = Field(default="CO", max_length=5)
+    phone: str | None = Field(default=None, max_length=40)
+    email: str | None = Field(default=None, max_length=160)
+    regime: str | None = Field(default=None, max_length=50)
+    responsibilities: str | None = Field(default=None)
+    resolution_number: str | None = Field(default=None, max_length=80)
+    resolution_prefix: str | None = Field(default=None, max_length=20)
+    resolution_range_from: int | None = None
+    resolution_range_to: int | None = None
+    resolution_date: str | None = Field(default=None, max_length=30)
+    software_id: str | None = Field(default=None, max_length=80)
+    software_secret: str | None = Field(default=None, max_length=200)
+    certificate_path: str | None = Field(default=None, max_length=500)
+
+
+class CompanyInfoUpdate(BaseModel):
+    company_name: str | None = Field(default=None, min_length=2, max_length=200)
+    nit: str | None = Field(default=None, min_length=3, max_length=30)
+    dv: str | None = Field(default=None, max_length=5)
+    address: str | None = Field(default=None, max_length=250)
+    municipality: str | None = Field(default=None, max_length=100)
+    department: str | None = Field(default=None, max_length=100)
+    country: str | None = Field(default=None, max_length=5)
+    phone: str | None = Field(default=None, max_length=40)
+    email: str | None = Field(default=None, max_length=160)
+    regime: str | None = Field(default=None, max_length=50)
+    responsibilities: str | None = None
+    resolution_number: str | None = Field(default=None, max_length=80)
+    resolution_prefix: str | None = Field(default=None, max_length=20)
+    resolution_range_from: int | None = None
+    resolution_range_to: int | None = None
+    resolution_date: str | None = Field(default=None, max_length=30)
+    software_id: str | None = Field(default=None, max_length=80)
+    software_secret: str | None = Field(default=None, max_length=200)
+    certificate_path: str | None = Field(default=None, max_length=500)
+
+
+class ElectronicInvoiceCreate(BaseModel):
+    sale_id: int
+    customer_name: str = Field(default="Consumidor final", max_length=160)
+    customer_document_type: str | None = Field(default=None, max_length=10)
+    customer_document_number: str | None = Field(default=None, max_length=30)
+    customer_email: str | None = Field(default=None, max_length=160)
+    customer_address: str | None = Field(default=None, max_length=250)
+    customer_phone: str | None = Field(default=None, max_length=40)
+
+
+class ElectronicInvoiceFilter(BaseModel):
+    status: str | None = None
+    customer_name: str | None = None
+    invoice_number: str | None = None
+    limit: int = Field(default=50, ge=1, le=200)
