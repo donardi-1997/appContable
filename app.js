@@ -3606,8 +3606,8 @@ function dashboard() {
                       <div
                         class="dashboard-bar-fill"
                         style="
-                          height:
-                            ${percentage}%;
+                          height: ${percentage}%;
+                          --bar-pct: ${percentage}%;
                         "
                       ></div>
                     </div>
