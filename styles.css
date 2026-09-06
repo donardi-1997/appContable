@@ -1191,11 +1191,15 @@ textarea {
 }
 
 /* ─── 18. STOCK NOTIFICATIONS ────────────────────────────── */
-.stock-notifications {
+.stock-notification-wrap {
   position: relative;
 }
 
-.stock-notif-badge {
+.stock-notification-button {
+  position: relative;
+}
+
+.stock-notification-badge {
   position: absolute;
   top: -4px;
   right: -4px;
@@ -1209,34 +1213,174 @@ textarea {
   font-weight: 700;
   border-radius: var(--r-full);
   padding: 0 4px;
+  pointer-events: none;
 }
 
-.stock-notif-panel {
+.stock-notification-panel {
   position: absolute;
-  top: 100%;
+  top: calc(100% + 8px);
   right: 0;
-  width: 320px;
-  max-height: 400px;
-  overflow-y: auto;
+  width: 360px;
+  max-height: 420px;
   background: var(--surface);
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   border-radius: var(--r-lg);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-float);
   z-index: var(--z-dropdown);
-  padding: var(--sp-3);
-}
-
-.stock-notif-item {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--sp-2) 0;
-  border-bottom: 1px solid var(--line);
-  font-size: var(--text-sm);
+  flex-direction: column;
+  overflow: hidden;
 }
 
-.stock-notif-item:last-child {
+.stock-notification-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.stock-notification-panel-head small {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.stock-notification-panel-head strong {
+  font-size: var(--text-sm);
+  display: block;
+}
+
+.stock-notification-close {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-sm);
+  font-size: 16px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all var(--t-fast);
+  flex-shrink: 0;
+}
+
+.stock-notification-close:hover {
+  background: var(--surface-elevated);
+  color: var(--text);
+}
+
+.stock-notification-list {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  padding: var(--sp-2) var(--sp-3);
+}
+
+.stock-notification-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  transition: background var(--t-fast);
+  border-bottom: 1px solid var(--line);
+}
+
+.stock-notification-item:last-child {
   border-bottom: none;
+}
+
+.stock-notification-item:hover {
+  background: var(--surface-elevated);
+}
+
+.stock-notification-icon {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.stock-notification-item.is-out .stock-notification-icon {
+  background: rgba(211, 109, 100, .15);
+  color: var(--red);
+}
+
+.stock-notification-item.is-low .stock-notification-icon {
+  background: rgba(214, 165, 66, .15);
+  color: var(--yellow);
+}
+
+.stock-notification-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.stock-notification-content strong {
+  font-size: var(--text-sm);
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.stock-notification-content small {
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.stock-notification-content span {
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.stock-notification-content b {
+  font-weight: 600;
+}
+
+.stock-notification-empty {
+  text-align: center;
+  padding: var(--sp-6) var(--sp-4);
+  color: var(--muted);
+}
+
+.stock-notification-empty strong {
+  display: block;
+  font-size: var(--text-sm);
+  margin-bottom: var(--sp-1);
+}
+
+.stock-notification-inventory {
+  margin: var(--sp-2) var(--sp-3) var(--sp-3);
+  flex-shrink: 0;
+}
+
+/* Notification overlay (mobile) */
+.notif-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: var(--modal-overlay);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: calc(var(--z-modal) - 2);
+}
+
+.notif-overlay.open {
+  display: block;
+}
+
+/* Lock scroll when notification panel is open on mobile */
+body.notifications-open {
+  overflow: hidden;
 }
 
 /* ─── 19. QR ─────────────────────────────────────────────── */
@@ -3524,13 +3668,13 @@ textarea:focus {
 }
 
 /* ─── F. DROPDOWNS / MODALS / TOASTS ──────────────────────── */
-.stock-notif-panel,
+.stock-notification-panel,
 .sale-product-results {
   border-color: var(--line-strong);
   box-shadow: var(--shadow-float);
 }
 
-.stock-notif-panel {
+.stock-notification-panel {
   width: min(360px, calc(100vw - 32px));
   margin-top: 8px;
 }
@@ -3975,13 +4119,14 @@ textarea:focus {
     flex: 1;
   }
 
-  .stock-notif-panel {
+  .stock-notification-panel {
     position: fixed;
     top: 72px;
     left: 12px;
     right: 12px;
     width: auto;
     max-height: min(62dvh, 460px);
+    z-index: var(--z-modal);
   }
 
   .modal-overlay {
@@ -4086,7 +4231,7 @@ textarea:focus {
     grid-template-columns: 1fr;
   }
 
-  .stock-notif-item {
+  .stock-notification-item {
     align-items: flex-start;
     gap: 10px;
   }
@@ -4258,7 +4403,7 @@ textarea:focus {
     place-items: center;
   }
 
-  .topbar-right .stock-notif-badge {
+  .topbar-right .stock-notification-badge {
     top: -5px;
     right: -6px;
     min-width: 18px;
@@ -4532,16 +4677,51 @@ textarea:focus {
     display: block;
   }
 
-  /* Notification panel mobile */
+  /* Notification bottom sheet mobile */
   .stock-notification-panel:not([hidden]) {
     position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
     top: auto;
-    bottom: var(--sp-4);
-    left: var(--sp-3);
-    right: var(--sp-3);
-    width: auto;
-    max-height: 60dvh;
+    width: 100%;
+    max-width: 100%;
+    max-height: min(82dvh, 720px);
+    border-radius: var(--r-xl) var(--r-xl) 0 0;
     z-index: var(--z-modal);
+    animation: notifSlideUp var(--t-normal) ease forwards;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  @keyframes notifSlideUp {
+    from { transform: translateY(100%); opacity: 0.5; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+
+  .stock-notification-panel-head {
+    padding: var(--sp-3) var(--sp-4);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .stock-notification-list {
+    padding: var(--sp-2) var(--sp-3);
+    max-height: calc(min(82dvh, 720px) - 140px);
+  }
+
+  .stock-notification-inventory {
+    margin: var(--sp-2) var(--sp-4) var(--sp-4);
+    width: calc(100% - var(--sp-8));
+  }
+
+  .stock-notification-item {
+    padding: var(--sp-3);
+    gap: var(--sp-3);
+  }
+
+  .stock-notification-icon {
+    width: 32px;
+    height: 32px;
+    font-size: 15px;
   }
 
   /* Grids single column */

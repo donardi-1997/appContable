@@ -1906,6 +1906,10 @@ function initializeAuthentication() {
 
   function openDrawer() {
     if (!mobileDrawer || !drawerOverlay) return;
+    // Close notification panel if open
+    if (typeof closeStockNotificationPanel === 'function') {
+      closeStockNotificationPanel();
+    }
     mobileDrawer.classList.add('open');
     drawerOverlay.classList.add('open');
     drawerOverlay.hidden = false;
@@ -1973,6 +1977,10 @@ function initializeAuthentication() {
   topbarUser?.addEventListener('click', e => {
     if (window.innerWidth > 600) return;
     e.stopPropagation();
+    // Close notification panel if open
+    if (typeof closeStockNotificationPanel === 'function') {
+      closeStockNotificationPanel();
+    }
     if (mobileDropdown) mobileDropdown.hidden = !mobileDropdown.hidden;
   });
 
@@ -5954,23 +5962,67 @@ function openStockNotificationPanel() {
       '#stock-notification-button'
     );
 
+  const overlay =
+    document.querySelector(
+      '#notif-overlay'
+    );
+
 
   if (!panel) {
     return;
+  }
+
+  // Close drawer if open
+  const mobileDrawer =
+    document.querySelector(
+      '#mobile-drawer'
+    );
+  const drawerOverlay =
+    document.querySelector(
+      '#drawer-overlay'
+    );
+  const hamburgerBtn =
+    document.querySelector(
+      '#hamburger-btn'
+    );
+  if (mobileDrawer?.classList.contains('open')) {
+    mobileDrawer.classList.remove('open');
+    drawerOverlay?.classList.remove('open');
+    if (drawerOverlay) drawerOverlay.hidden = true;
+    hamburgerBtn?.classList.remove('open');
+    hamburgerBtn?.setAttribute('aria-expanded', 'false');
+    document.body.classList.remove('menu-open');
+  }
+
+  // Close user dropdown if open
+  const userDropdown =
+    document.querySelector(
+      '#mobile-user-dropdown'
+    );
+  if (userDropdown) {
+    userDropdown.hidden = true;
   }
 
 
   renderStockNotifications();
 
 
-  panel.hidden =
-    false;
+  panel.hidden = false;
+  if (overlay) {
+    overlay.hidden = false;
+    overlay.classList.add('open');
+  }
+  document.body.classList.add('notifications-open');
 
 
   button?.setAttribute(
     'aria-expanded',
     'true'
   );
+
+  // Focus the close button
+  const closeBtn = document.querySelector('#stock-notification-close');
+  if (closeBtn) closeBtn.focus();
 }
 
 
@@ -5986,16 +6038,29 @@ function closeStockNotificationPanel() {
       '#stock-notification-button'
     );
 
+  const overlay =
+    document.querySelector(
+      '#notif-overlay'
+    );
+
 
   if (panel) {
     panel.hidden = true;
   }
+  if (overlay) {
+    overlay.hidden = true;
+    overlay.classList.remove('open');
+  }
+  document.body.classList.remove('notifications-open');
 
 
   button?.setAttribute(
     'aria-expanded',
     'false'
   );
+
+  // Return focus to bell button
+  if (button) button.focus();
 }
 
 
@@ -6066,6 +6131,38 @@ document.addEventListener(
     }
 
 
+    const notifCloseBtn =
+      event.target.closest(
+        '#stock-notification-close'
+      );
+
+
+    if (notifCloseBtn) {
+
+      event.preventDefault();
+
+      closeStockNotificationPanel();
+
+      return;
+    }
+
+
+    const notifOverlay =
+      event.target.closest(
+        '#notif-overlay'
+      );
+
+
+    if (notifOverlay) {
+
+      event.preventDefault();
+
+      closeStockNotificationPanel();
+
+      return;
+    }
+
+
     const productItem =
       event.target.closest(
         '[data-stock-notification-product]'
@@ -6103,6 +6200,27 @@ document.addEventListener(
       closeStockNotificationPanel();
     }
 
+  }
+);
+
+
+/* Escape key closes notifications */
+document.addEventListener(
+  'keydown',
+  event => {
+
+    if (event.key === 'Escape') {
+
+      const panel =
+        document.querySelector(
+          '#stock-notification-panel'
+        );
+
+      if (panel && !panel.hidden) {
+        event.preventDefault();
+        closeStockNotificationPanel();
+      }
+    }
   }
 );
 
