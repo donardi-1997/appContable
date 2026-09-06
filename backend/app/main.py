@@ -11,7 +11,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
-from fastapi import Cookie, Depends, FastAPI, Header, HTTPException, Response, UploadFile, File, status
+from fastapi import Cookie, Depends, FastAPI, Header, HTTPException, Request, Response, UploadFile, File, status
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -615,6 +615,7 @@ def bootstrap_admin(
 @app.post("/api/auth/login")
 def login(
     payload: LoginCreate,
+    request: Request,
     response: Response,
     db: Session = Depends(get_db),
 ):
@@ -659,6 +660,7 @@ def login(
         user
     )
 
+    is_https = request.headers.get("x-forwarded-proto", "").lower() == "https"
 
     response.set_cookie(
         key=AUTH_COOKIE_NAME,
@@ -666,9 +668,7 @@ def login(
 
         httponly=True,
 
-        # En localhost usamos False.
-        # En producción HTTPS debe ser True.
-        secure=False,
+        secure=is_https,
 
         samesite="lax",
 

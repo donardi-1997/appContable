@@ -3,10 +3,17 @@
 ## Architecture
 
 ```
-Internet → Nginx (port 80/443)
-            ├── /         → Static files (index.html, app.js, styles.css)
-            ├── /api/*    → FastAPI/Uvicorn (127.0.0.1:8000)
-            └── /uploads  → FastAPI (product images)
+Internet (HTTPS)
+   │
+   v
+CloudFront (d2nrz4ea6pqx0k.cloudfront.net)
+   │
+   │ HTTP
+   v
+Nginx (port 80)
+   ├── /         → Static files (index.html, app.js, styles.css)
+   ├── /api/*    → FastAPI/Uvicorn (127.0.0.1:8000)
+   └── /uploads  → FastAPI (product images)
 ```
 
 ## AWS Lightsail
@@ -107,13 +114,40 @@ sudo tail -f /var/log/nginx/error.log
 sudo tail -f /var/log/la-patrona/backup.log
 ```
 
-## HTTPS (Future)
+## HTTPS (Current - CDN)
+
+HTTPS is provided via Lightsail Distribution (CloudFront):
+
+| Item | Value |
+|------|-------|
+| Distribution | `la-patrona-cdn` |
+| CloudFront hostname | `d2nrz4ea6pqx0k.cloudfront.net` |
+| Public URL | `https://d2nrz4ea6pqx0k.cloudfront.net` |
+| Bundle | `small_1_0` ($2.50/mo) |
+| Origin protocol | HTTP |
+| Viewer protocol | HTTPS |
+| Cache | Disabled (dont-cache) |
+| Forwarded headers | Authorization, Host, Origin, etc. |
+| Forwarded cookies | All |
+| Forwarded query strings | All |
+
+### CDN Management
+
+```bash
+# View distribution status
+aws lightsail get-distributions --distribution-name la-patrona-cdn --region us-east-1
+
+# Invalidate cache (if needed)
+aws lightsail create-distribution-cache-invalidation --distribution-name la-patrona-cdn --region us-east-1 --invalidation-batch '{"paths":{"quantity":1,"items":["/*"]},"callerReference":"manual-'"$(date +%s)"'"}'
+```
+
+## HTTPS (Future - Custom Domain)
 
 When a domain is available:
-1. Point DNS A record to `3.135.181.212`
-2. Install certbot: `sudo apt install certbot python3-certbot-nginx`
-3. Run: `sudo certbot --nginx -d yourdomain.com`
-4. Auto-renewal is configured automatically
+1. Add custom domain to Lightsail Distribution
+2. Request ACM certificate via Lightsail
+3. Configure DNS CNAME to CloudFront
+4. Update CORS origins if needed
 
 ## Security Notes
 
