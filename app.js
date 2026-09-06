@@ -1293,10 +1293,10 @@ function applyRoleNavigation() {
       }
     );
 
-  // Also apply to more sheet
+  // Also apply to drawer
   document
     .querySelectorAll(
-      '#more-sheet-items [data-view]'
+      '#drawer-nav [data-view], #drawer-nav-admin [data-view]'
     )
     .forEach(
       item => {
@@ -1306,6 +1306,15 @@ function applyRoleNavigation() {
           );
       }
     );
+
+  // Hide admin section header if no admin items visible
+  const adminSection = document.getElementById('drawer-admin-section');
+  const adminNav = document.getElementById('drawer-nav-admin');
+  if (adminSection && adminNav) {
+    const hasVisible = adminNav.querySelector('.drawer-item[data-view]:not([hidden])');
+    adminSection.style.display = hasVisible ? '' : 'none';
+    adminNav.style.display = hasVisible ? '' : 'none';
+  }
 
 
   if (
@@ -1880,62 +1889,69 @@ function initializeAuthentication() {
     // Sync mobile theme buttons
     const mi = document.getElementById('mobile-theme-icon');
     const ml = document.getElementById('mobile-theme-label');
-    const mmi = document.getElementById('more-theme-icon');
-    const mml = document.getElementById('more-theme-label');
+    const di = document.getElementById('drawer-theme-icon');
+    const dl = document.getElementById('drawer-theme-label');
     if (mi) mi.textContent = icon;
     if (ml) ml.textContent = `Modo ${label.toLowerCase()}`;
-    if (mmi) mmi.textContent = icon;
-    if (mml) mml.textContent = `Modo ${label.toLowerCase()}`;
+    if (di) di.textContent = icon;
+    if (dl) dl.textContent = `Modo ${label.toLowerCase()}`;
   }
 
 
-  // ── Bottom navigation ──
-  document.querySelectorAll('#bottom-nav .bottom-nav-item[data-view]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const view = btn.dataset.view;
-      if (view && views[view]) {
-        render(view);
-      }
-    });
+  // ── Mobile drawer ──
+  const hamburgerBtn = document.getElementById('hamburger-btn');
+  const drawerOverlay = document.getElementById('drawer-overlay');
+  const mobileDrawer = document.getElementById('mobile-drawer');
+  const drawerCloseBtn = document.getElementById('drawer-close-btn');
+
+  function openDrawer() {
+    if (!mobileDrawer || !drawerOverlay) return;
+    mobileDrawer.classList.add('open');
+    drawerOverlay.classList.add('open');
+    drawerOverlay.hidden = false;
+    hamburgerBtn?.classList.add('open');
+    hamburgerBtn?.setAttribute('aria-expanded', 'true');
+    document.body.classList.add('menu-open');
+    // Focus first item
+    const first = mobileDrawer.querySelector('.drawer-item:not([hidden])');
+    if (first) first.focus();
+  }
+
+  function closeDrawer() {
+    if (!mobileDrawer || !drawerOverlay) return;
+    mobileDrawer.classList.remove('open');
+    drawerOverlay.classList.remove('open');
+    drawerOverlay.hidden = true;
+    hamburgerBtn?.classList.remove('open');
+    hamburgerBtn?.setAttribute('aria-expanded', 'false');
+    document.body.classList.remove('menu-open');
+    hamburgerBtn?.focus();
+  }
+
+  hamburgerBtn?.addEventListener('click', openDrawer);
+  drawerCloseBtn?.addEventListener('click', closeDrawer);
+  drawerOverlay?.addEventListener('click', closeDrawer);
+
+  // Escape key closes drawer
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && mobileDrawer?.classList.contains('open')) {
+      closeDrawer();
+    }
   });
 
-  // ── More sheet ──
-  const moreBtn = document.getElementById('bottom-nav-more');
-  const moreOverlay = document.getElementById('more-sheet-overlay');
-  const moreSheet = document.getElementById('more-sheet');
-
-  function openMoreSheet() {
-    if (moreOverlay) moreOverlay.hidden = false;
-    // Sync role visibility
-    const isAdmin = state.currentUser?.role === 'ADMIN';
-    document.querySelectorAll('#more-sheet-items .more-sheet-item[data-view]').forEach(item => {
-      const v = item.dataset.view;
-      if (['purchases', 'invoices', 'users', 'audit'].includes(v)) {
-        item.hidden = !isAdmin;
-      }
-    });
-  }
-
-  function closeMoreSheet() {
-    if (moreOverlay) moreOverlay.hidden = true;
-  }
-
-  moreBtn?.addEventListener('click', openMoreSheet);
-  moreOverlay?.addEventListener('click', e => {
-    if (e.target === moreOverlay) closeMoreSheet();
-  });
-
-  document.querySelectorAll('#more-sheet-items .more-sheet-item[data-view]').forEach(item => {
+  // Drawer nav items
+  document.querySelectorAll('#drawer-nav .drawer-item[data-view], #drawer-nav-admin .drawer-item[data-view]').forEach(item => {
     item.addEventListener('click', () => {
       const view = item.dataset.view;
-      closeMoreSheet();
+      closeDrawer();
       if (view && views[view]) {
         render(view);
       }
     });
   });
 
-  document.getElementById('more-theme-toggle')?.addEventListener('click', () => {
+  // Drawer theme toggle
+  document.getElementById('drawer-theme-toggle')?.addEventListener('click', () => {
     const current = document.documentElement.getAttribute('data-theme');
     const next = current === 'dark' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', next);
@@ -1943,8 +1959,9 @@ function initializeAuthentication() {
     updateThemeUI(next);
   });
 
-  document.getElementById('more-logout-button')?.addEventListener('click', () => {
-    closeMoreSheet();
+  // Drawer logout
+  document.getElementById('drawer-logout-button')?.addEventListener('click', () => {
+    closeDrawer();
     logoutUser();
   });
 
@@ -13626,6 +13643,20 @@ function updateActiveNavigation() {
             'aria-current'
           );
         }
+      }
+    );
+
+  // Sync drawer nav
+  document
+    .querySelectorAll(
+      '#drawer-nav .drawer-item[data-view], #drawer-nav-admin .drawer-item[data-view]'
+    )
+    .forEach(
+      button => {
+        button.classList.toggle(
+          'active',
+          button.dataset.view === currentView
+        );
       }
     );
 

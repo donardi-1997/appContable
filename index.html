@@ -153,8 +153,19 @@
     <main class="main">
       <header class="topbar">
         <div class="topbar-left">
-          <p class="eyebrow" id="topbar-date">LUNES, 24 DE AGOSTO DE 2026</p>
-          <h1 id="view-title">Resumen de hoy</h1>
+          <button class="hamburger-btn" id="hamburger-btn" type="button" aria-label="Abrir menú" aria-expanded="false" aria-controls="mobile-drawer">
+            <span class="hamburger-line"></span>
+            <span class="hamburger-line"></span>
+            <span class="hamburger-line"></span>
+          </button>
+          <div class="topbar-brand-mobile">
+            <span class="brand-mark-sm">P</span>
+            <strong>La Patrona VIP</strong>
+          </div>
+          <div class="topbar-title-block">
+            <p class="eyebrow" id="topbar-date">LUNES, 24 DE AGOSTO DE 2026</p>
+            <h1 id="view-title">Resumen de hoy</h1>
+          </div>
         </div>
         <div class="top-actions">
 
@@ -229,7 +240,7 @@
         </div>
       </header>
 
-      <!-- Mobile user dropdown -->
+      <!-- Mobile user dropdown (avatar menu) -->
       <div class="mobile-user-dropdown" id="mobile-user-dropdown" hidden>
         <div class="mobile-user-dropdown-header">
           <div class="avatar avatar-lg" id="mobile-user-avatar">U</div>
@@ -250,60 +261,71 @@
     </main>
   </div>
 
-  <!-- Bottom navigation (mobile only) -->
-  <nav class="bottom-nav" id="bottom-nav">
-    <button type="button" class="bottom-nav-item active" data-view="dashboard" aria-label="Inicio">
-      <span class="bottom-nav-icon">⌂</span>
-      <span class="bottom-nav-label">Inicio</span>
-    </button>
-    <button type="button" class="bottom-nav-item" data-view="sales" aria-label="Ventas">
-      <span class="bottom-nav-icon">▣</span>
-      <span class="bottom-nav-label">Ventas</span>
-    </button>
-    <button type="button" class="bottom-nav-item" data-view="inventory" aria-label="Inventario">
-      <span class="bottom-nav-icon">◈</span>
-      <span class="bottom-nav-label">Inventario</span>
-    </button>
-    <button type="button" class="bottom-nav-item" id="bottom-nav-more" aria-label="Más opciones">
-      <span class="bottom-nav-icon">☰</span>
-      <span class="bottom-nav-label">Más</span>
-    </button>
-  </nav>
+  <!-- Mobile drawer overlay -->
+  <div class="drawer-overlay" id="drawer-overlay" hidden></div>
 
-  <!-- More menu sheet (mobile) -->
-  <div class="more-sheet-overlay" id="more-sheet-overlay" hidden>
-    <div class="more-sheet" id="more-sheet">
-      <div class="more-sheet-handle"></div>
-      <div class="more-sheet-header">
-        <strong>Más opciones</strong>
+  <!-- Mobile drawer -->
+  <nav class="mobile-drawer" id="mobile-drawer" aria-label="Navegación">
+    <div class="drawer-header">
+      <div class="brand"><span class="brand-mark">P</span>
+        <div><strong>La Patrona</strong><small>VIP</small></div>
       </div>
-      <div class="more-sheet-items" id="more-sheet-items">
-        <button class="more-sheet-item" data-view="expenses" type="button">
-          <span class="more-sheet-icon">↘</span> Gastos
-        </button>
-        <button class="more-sheet-item" data-view="purchases" type="button" hidden>
-          <span class="more-sheet-icon">◇</span> Compras
-        </button>
-        <button class="more-sheet-item" data-view="invoices" type="button" hidden>
-          <span class="more-sheet-icon">◈</span> Facturación
-        </button>
-        <button class="more-sheet-item" data-view="users" type="button" hidden>
-          <span class="more-sheet-icon">♙</span> Usuarios
-        </button>
-        <button class="more-sheet-item" data-view="audit" type="button" hidden>
-          <span class="more-sheet-icon">◎</span> Auditoría
-        </button>
-        <div class="more-sheet-divider"></div>
-        <button class="more-sheet-item" id="more-theme-toggle" type="button">
-          <span class="more-sheet-icon" id="more-theme-icon">☀</span>
-          <span id="more-theme-label">Modo claro</span>
-        </button>
-        <button class="more-sheet-item danger" id="more-logout-button" type="button">
-          <span class="more-sheet-icon">↪</span> Cerrar sesión
-        </button>
+      <button class="drawer-close-btn" id="drawer-close-btn" type="button" aria-label="Cerrar menú">✕</button>
+    </div>
+    <p class="eyebrow drawer-section">OPERACIÓN</p>
+    <div class="drawer-nav" id="drawer-nav">
+      <button type="button" class="drawer-item active" data-view="dashboard">
+        <span class="drawer-icon">⌂</span>
+        <span class="drawer-label">Dashboard</span>
+      </button>
+      <button type="button" class="drawer-item" data-view="sales">
+        <span class="drawer-icon">▣</span>
+        <span class="drawer-label">Ventas y caja</span>
+      </button>
+      <button type="button" class="drawer-item" data-view="inventory">
+        <span class="drawer-icon">◈</span>
+        <span class="drawer-label">Inventario</span>
+      </button>
+      <button type="button" class="drawer-item" data-view="purchases" hidden>
+        <span class="drawer-icon">◇</span>
+        <span class="drawer-label">Compras</span>
+      </button>
+      <button type="button" class="drawer-item" data-view="expenses">
+        <span class="drawer-icon">↘</span>
+        <span class="drawer-label">Gastos</span>
+      </button>
+      <button type="button" class="drawer-item" data-view="invoices" hidden>
+        <span class="drawer-icon">◈</span>
+        <span class="drawer-label">Facturación</span>
+      </button>
+    </div>
+    <p class="eyebrow drawer-section drawer-section-admin" id="drawer-admin-section">ADMINISTRACIÓN</p>
+    <div class="drawer-nav drawer-nav-admin" id="drawer-nav-admin">
+      <button type="button" class="drawer-item" data-view="users" hidden>
+        <span class="drawer-icon">♙</span>
+        <span class="drawer-label">Usuarios</span>
+      </button>
+      <button type="button" class="drawer-item" data-view="audit" hidden>
+        <span class="drawer-icon">◎</span>
+        <span class="drawer-label">Auditoría</span>
+      </button>
+    </div>
+    <div class="drawer-divider"></div>
+    <div class="drawer-footer">
+      <button class="drawer-item" id="drawer-theme-toggle" type="button">
+        <span class="drawer-icon" id="drawer-theme-icon">☀</span>
+        <span id="drawer-theme-label">Modo claro</span>
+      </button>
+      <button class="drawer-item danger" id="drawer-logout-button" type="button">
+        <span class="drawer-icon">↪</span>
+        <span>Cerrar sesión</span>
+      </button>
+      <div class="drawer-status">
+        <span class="status-dot"></span> Sistema en línea
+        <br><small>Una sede · Ramiriquí</small>
       </div>
     </div>
-  </div>
+  </nav>
 
   <div id="toast" class="toast"></div>
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
