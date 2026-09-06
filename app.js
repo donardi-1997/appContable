@@ -1293,6 +1293,20 @@ function applyRoleNavigation() {
       }
     );
 
+  // Also apply to more sheet
+  document
+    .querySelectorAll(
+      '#more-sheet-items [data-view]'
+    )
+    .forEach(
+      item => {
+        item.hidden =
+          !allowed.includes(
+            item.dataset.view
+          );
+      }
+    );
+
 
   if (
     !allowed.includes(
@@ -1436,6 +1450,14 @@ function updateAuthenticatedUserUI() {
         user.username
       );
   }
+
+  // Update mobile dropdown
+  const mName = document.getElementById('mobile-user-name');
+  const mRole = document.getElementById('mobile-user-role');
+  const mAvatar = document.getElementById('mobile-user-avatar');
+  if (mName) mName.textContent = user.full_name || user.username;
+  if (mRole) mRole.textContent = getRoleLabel(user.role);
+  if (mAvatar) mAvatar.textContent = getUserInitials(user.full_name || user.username);
 
   applyRoleNavigation();
 }
@@ -1851,9 +1873,111 @@ function initializeAuthentication() {
   });
 
   function updateThemeUI(theme) {
-    if (themeIcon) themeIcon.textContent = theme === 'dark' ? '\u2600' : '\u263E';
-    if (themeLabel) themeLabel.textContent = theme === 'dark' ? 'Claro' : 'Oscuro';
+    const icon = theme === 'dark' ? '\u2600' : '\u263E';
+    const label = theme === 'dark' ? 'Claro' : 'Oscuro';
+    if (themeIcon) themeIcon.textContent = icon;
+    if (themeLabel) themeLabel.textContent = label;
+    // Sync mobile theme buttons
+    const mi = document.getElementById('mobile-theme-icon');
+    const ml = document.getElementById('mobile-theme-label');
+    const mmi = document.getElementById('more-theme-icon');
+    const mml = document.getElementById('more-theme-label');
+    if (mi) mi.textContent = icon;
+    if (ml) ml.textContent = `Modo ${label.toLowerCase()}`;
+    if (mmi) mmi.textContent = icon;
+    if (mml) mml.textContent = `Modo ${label.toLowerCase()}`;
   }
+
+
+  // ── Bottom navigation ──
+  document.querySelectorAll('#bottom-nav .bottom-nav-item[data-view]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const view = btn.dataset.view;
+      if (view && views[view]) {
+        render(view);
+      }
+    });
+  });
+
+  // ── More sheet ──
+  const moreBtn = document.getElementById('bottom-nav-more');
+  const moreOverlay = document.getElementById('more-sheet-overlay');
+  const moreSheet = document.getElementById('more-sheet');
+
+  function openMoreSheet() {
+    if (moreOverlay) moreOverlay.hidden = false;
+    // Sync role visibility
+    const isAdmin = state.currentUser?.role === 'ADMIN';
+    document.querySelectorAll('#more-sheet-items .more-sheet-item[data-view]').forEach(item => {
+      const v = item.dataset.view;
+      if (['purchases', 'invoices', 'users', 'audit'].includes(v)) {
+        item.hidden = !isAdmin;
+      }
+    });
+  }
+
+  function closeMoreSheet() {
+    if (moreOverlay) moreOverlay.hidden = true;
+  }
+
+  moreBtn?.addEventListener('click', openMoreSheet);
+  moreOverlay?.addEventListener('click', e => {
+    if (e.target === moreOverlay) closeMoreSheet();
+  });
+
+  document.querySelectorAll('#more-sheet-items .more-sheet-item[data-view]').forEach(item => {
+    item.addEventListener('click', () => {
+      const view = item.dataset.view;
+      closeMoreSheet();
+      if (view && views[view]) {
+        render(view);
+      }
+    });
+  });
+
+  document.getElementById('more-theme-toggle')?.addEventListener('click', () => {
+    const current = document.documentElement.getAttribute('data-theme');
+    const next = current === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('lp-theme', next);
+    updateThemeUI(next);
+  });
+
+  document.getElementById('more-logout-button')?.addEventListener('click', () => {
+    closeMoreSheet();
+    logoutUser();
+  });
+
+
+  // ── Mobile user dropdown ──
+  const topbarUser = document.querySelector('.topbar-user');
+  const mobileDropdown = document.getElementById('mobile-user-dropdown');
+
+  topbarUser?.addEventListener('click', e => {
+    if (window.innerWidth > 600) return;
+    e.stopPropagation();
+    if (mobileDropdown) mobileDropdown.hidden = !mobileDropdown.hidden;
+  });
+
+  document.addEventListener('click', e => {
+    if (mobileDropdown && !mobileDropdown.contains(e.target)) {
+      mobileDropdown.hidden = true;
+    }
+  });
+
+  document.getElementById('mobile-theme-toggle')?.addEventListener('click', () => {
+    const current = document.documentElement.getAttribute('data-theme');
+    const next = current === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('lp-theme', next);
+    updateThemeUI(next);
+    if (mobileDropdown) mobileDropdown.hidden = true;
+  });
+
+  document.getElementById('mobile-logout-button')?.addEventListener('click', () => {
+    if (mobileDropdown) mobileDropdown.hidden = true;
+    logoutUser();
+  });
 
 
   restoreAuthSession();
@@ -3369,22 +3493,22 @@ function dashboard() {
       const grandTotal = months.reduce((s, m) => s + histByMonth[m].total, 0);
       const monthNames = { '01': 'Ene', '02': 'Feb', '03': 'Mar', '04': 'Abr', '05': 'May', '06': 'Jun', '07': 'Jul', '08': 'Ago', '09': 'Sep', '10': 'Oct', '11': 'Nov', '12': 'Dic' };
       return `
-        <section class="card" style="margin-top:18px">
+        <section class="card historical-sales-card">
           <div class="card-head">
             <div>
               <h2>Ventas históricas (inventario)</h2>
-              <small style="color:var(--muted)">Datos importados · ${months.length} períodos · ${money(grandTotal)} total</small>
+              <small class="text-muted">Datos importados · ${months.length} períodos · ${money(grandTotal)} total</small>
             </div>
           </div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-top:12px">
+          <div class="historical-sales-grid">
             ${months.map(m => {
               const [yr, mo] = m.split('-');
               const label = (monthNames[mo] || mo) + ' ' + yr;
               const val = histByMonth[m].total;
-              return '<div style="background:var(--surface-2);border-radius:8px;padding:12px;text-align:center">' +
-                '<div style="font-size:12px;color:var(--muted)">' + label + '</div>' +
-                '<div style="font-size:18px;font-weight:700;margin-top:4px">' + money(val) + '</div>' +
-                '<div style="font-size:11px;color:var(--muted);margin-top:2px">' + histByMonth[m].items + ' unidades</div>' +
+              return '<div class="historical-sales-item">' +
+                '<span class="historical-sales-label">' + label + '</span>' +
+                '<span class="historical-sales-value">' + money(val) + '</span>' +
+                '<span class="historical-sales-units">' + histByMonth[m].items + ' uds</span>' +
                 '</div>';
             }).join('')}
           </div>
@@ -13502,6 +13626,20 @@ function updateActiveNavigation() {
             'aria-current'
           );
         }
+      }
+    );
+
+  // Sync bottom nav
+  document
+    .querySelectorAll(
+      '#bottom-nav .bottom-nav-item[data-view]'
+    )
+    .forEach(
+      button => {
+        button.classList.toggle(
+          'active',
+          button.dataset.view === currentView
+        );
       }
     );
 

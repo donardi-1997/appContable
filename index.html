@@ -152,8 +152,8 @@
     </aside>
     <main class="main">
       <header class="topbar">
-        <div>
-          <p class="eyebrow">LUNES, 24 DE AGOSTO DE 2026</p>
+        <div class="topbar-left">
+          <p class="eyebrow" id="topbar-date">LUNES, 24 DE AGOSTO DE 2026</p>
           <h1 id="view-title">Resumen de hoy</h1>
         </div>
         <div class="top-actions">
@@ -228,9 +228,83 @@
 
         </div>
       </header>
+
+      <!-- Mobile user dropdown -->
+      <div class="mobile-user-dropdown" id="mobile-user-dropdown" hidden>
+        <div class="mobile-user-dropdown-header">
+          <div class="avatar avatar-lg" id="mobile-user-avatar">U</div>
+          <div>
+            <strong id="mobile-user-name">Usuario</strong>
+            <small id="mobile-user-role">—</small>
+          </div>
+        </div>
+        <button class="mobile-user-dropdown-item" id="mobile-theme-toggle" type="button">
+          <span id="mobile-theme-icon">☀</span> <span id="mobile-theme-label">Modo claro</span>
+        </button>
+        <button class="mobile-user-dropdown-item danger" id="mobile-logout-button" type="button">
+          ↪ Cerrar sesión
+        </button>
+      </div>
+
       <div id="app"></div>
     </main>
   </div>
+
+  <!-- Bottom navigation (mobile only) -->
+  <nav class="bottom-nav" id="bottom-nav">
+    <button type="button" class="bottom-nav-item active" data-view="dashboard" aria-label="Inicio">
+      <span class="bottom-nav-icon">⌂</span>
+      <span class="bottom-nav-label">Inicio</span>
+    </button>
+    <button type="button" class="bottom-nav-item" data-view="sales" aria-label="Ventas">
+      <span class="bottom-nav-icon">▣</span>
+      <span class="bottom-nav-label">Ventas</span>
+    </button>
+    <button type="button" class="bottom-nav-item" data-view="inventory" aria-label="Inventario">
+      <span class="bottom-nav-icon">◈</span>
+      <span class="bottom-nav-label">Inventario</span>
+    </button>
+    <button type="button" class="bottom-nav-item" id="bottom-nav-more" aria-label="Más opciones">
+      <span class="bottom-nav-icon">☰</span>
+      <span class="bottom-nav-label">Más</span>
+    </button>
+  </nav>
+
+  <!-- More menu sheet (mobile) -->
+  <div class="more-sheet-overlay" id="more-sheet-overlay" hidden>
+    <div class="more-sheet" id="more-sheet">
+      <div class="more-sheet-handle"></div>
+      <div class="more-sheet-header">
+        <strong>Más opciones</strong>
+      </div>
+      <div class="more-sheet-items" id="more-sheet-items">
+        <button class="more-sheet-item" data-view="expenses" type="button">
+          <span class="more-sheet-icon">↘</span> Gastos
+        </button>
+        <button class="more-sheet-item" data-view="purchases" type="button" hidden>
+          <span class="more-sheet-icon">◇</span> Compras
+        </button>
+        <button class="more-sheet-item" data-view="invoices" type="button" hidden>
+          <span class="more-sheet-icon">◈</span> Facturación
+        </button>
+        <button class="more-sheet-item" data-view="users" type="button" hidden>
+          <span class="more-sheet-icon">♙</span> Usuarios
+        </button>
+        <button class="more-sheet-item" data-view="audit" type="button" hidden>
+          <span class="more-sheet-icon">◎</span> Auditoría
+        </button>
+        <div class="more-sheet-divider"></div>
+        <button class="more-sheet-item" id="more-theme-toggle" type="button">
+          <span class="more-sheet-icon" id="more-theme-icon">☀</span>
+          <span id="more-theme-label">Modo claro</span>
+        </button>
+        <button class="more-sheet-item danger" id="more-logout-button" type="button">
+          <span class="more-sheet-icon">↪</span> Cerrar sesión
+        </button>
+      </div>
+    </div>
+  </div>
+
   <div id="toast" class="toast"></div>
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <script src="app.js"></script>
