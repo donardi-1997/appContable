@@ -394,6 +394,13 @@ def process_sheet(
         name_occurrence[norm_name] = name_occurrence.get(norm_name, 0) + 1
         occurrence = name_occurrence[norm_name]
 
+        if norm_name == "SMIRNOFF" and occurrence > 1:
+            product = find_or_create_product(db, "SMIRNOFF MINI", report, product_cache)
+            if product is None:
+                report.products_pending += 1
+                report.skipped_products.append(product_name)
+                continue
+
         source_key = f"{SOURCE_TAG}:{sheet_name}"
         if occurrence > 1:
             source_key = f"{source_key}:#{occurrence}"
