@@ -1217,16 +1217,16 @@ textarea {
 }
 
 .stock-notification-panel:not([hidden]) {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
+  position: fixed;
+  top: var(--notif-top, auto);
+  right: var(--notif-right, auto);
   width: 360px;
   max-height: 420px;
   background: var(--surface);
   border: 1px solid var(--line-strong);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-float);
-  z-index: var(--z-dropdown);
+  z-index: calc(var(--z-modal) + 1);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -3694,7 +3694,6 @@ textarea:focus {
 
 .stock-notification-panel {
   width: min(360px, calc(100vw - 32px));
-  margin-top: 8px;
 }
 
 .modal-overlay {
@@ -4139,12 +4138,12 @@ textarea:focus {
 
   .stock-notification-panel {
     position: fixed;
-    top: 72px;
-    left: 12px;
-    right: 12px;
-    width: auto;
+    top: var(--notif-top, 72px);
+    right: var(--notif-right, auto);
+    left: var(--notif-left, 12px);
+    width: min(360px, calc(100vw - 24px));
     max-height: min(62dvh, 460px);
-    z-index: var(--z-modal);
+    z-index: calc(var(--z-modal) + 1);
   }
 
   .modal-overlay {
@@ -4756,7 +4755,7 @@ textarea:focus {
     max-width: 100%;
     max-height: min(82dvh, 720px);
     border-radius: var(--r-xl) var(--r-xl) 0 0;
-    z-index: var(--z-modal);
+    z-index: calc(var(--z-modal) + 1);
     animation: notifSlideUp var(--t-normal) ease forwards;
     padding-bottom: env(safe-area-inset-bottom);
   }

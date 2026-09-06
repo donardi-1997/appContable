@@ -6006,6 +6006,19 @@ function openStockNotificationPanel() {
 
   renderStockNotifications();
 
+  // Position panel relative to bell button on desktop/tablet
+  if (button) {
+    const rect = button.getBoundingClientRect();
+    if (window.innerWidth > 600) {
+      panel.style.setProperty('--notif-top', (rect.bottom + 8) + 'px');
+      panel.style.setProperty('--notif-right', (window.innerWidth - rect.right) + 'px');
+      panel.style.setProperty('--notif-left', 'auto');
+    } else {
+      panel.style.removeProperty('--notif-top');
+      panel.style.removeProperty('--notif-right');
+      panel.style.removeProperty('--notif-left');
+    }
+  }
 
   panel.hidden = false;
   if (overlay) {
@@ -6046,6 +6059,9 @@ function closeStockNotificationPanel() {
 
   if (panel) {
     panel.hidden = true;
+    panel.style.removeProperty('--notif-top');
+    panel.style.removeProperty('--notif-right');
+    panel.style.removeProperty('--notif-left');
   }
   if (overlay) {
     overlay.hidden = true;

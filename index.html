@@ -180,37 +180,6 @@
               </span>
             </button>
 
-            <div class="stock-notification-panel" id="stock-notification-panel" hidden role="dialog" aria-label="Notificaciones de inventario">
-              <div class="stock-notification-panel-head">
-
-                <div>
-                  <small>
-                    INVENTARIO
-                  </small>
-
-                  <strong>
-                    Notificaciones
-                  </strong>
-                </div>
-
-                <div style="display:flex;align-items:center;gap:8px">
-                  <span class="pill" id="stock-notification-count">
-                    0
-                  </span>
-                  <button class="stock-notification-close" id="stock-notification-close" type="button" aria-label="Cerrar notificaciones">✕</button>
-                </div>
-
-              </div>
-
-              <div id="stock-notification-list" class="stock-notification-list"></div>
-
-              <button class="btn secondary stock-notification-inventory" id="stock-notification-inventory"
-                type="button">
-                Ir a inventario
-              </button>
-
-            </div>
-
           </div>
 
 
@@ -266,6 +235,38 @@
 
   <!-- Mobile notification overlay -->
   <div class="notif-overlay" id="notif-overlay" hidden></div>
+
+  <!-- Notification panel (at body level to escape topbar stacking context) -->
+  <div class="stock-notification-panel" id="stock-notification-panel" hidden role="dialog" aria-label="Notificaciones de inventario">
+    <div class="stock-notification-panel-head">
+
+      <div>
+        <small>
+          INVENTARIO
+        </small>
+
+        <strong>
+          Notificaciones
+        </strong>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="pill" id="stock-notification-count">
+          0
+        </span>
+        <button class="stock-notification-close" id="stock-notification-close" type="button" aria-label="Cerrar notificaciones">✕</button>
+      </div>
+
+    </div>
+
+    <div id="stock-notification-list" class="stock-notification-list"></div>
+
+    <button class="btn secondary stock-notification-inventory" id="stock-notification-inventory"
+      type="button">
+      Ir a inventario
+    </button>
+
+  </div>
 
   <!-- Mobile drawer overlay -->
   <div class="drawer-overlay" id="drawer-overlay" hidden></div>
