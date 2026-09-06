@@ -7,6 +7,10 @@ import os
 import secrets
 from decimal import Decimal
 from pathlib import Path
+
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 from fastapi import Cookie, Depends, FastAPI, Header, HTTPException, Response, UploadFile, File, status
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware

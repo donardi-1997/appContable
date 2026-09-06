@@ -3,6 +3,7 @@ const state = {
   products: [],
   expenses: [],
   inventoryMovements: [],
+  inventoryHistory: [],
   openAccounts: [],
   cashRegister: {
     status: 'CLOSED',
@@ -3353,6 +3354,42 @@ function dashboard() {
       </div>
 
     </div>
+
+    ${(() => {
+      const histByMonth = {};
+      (state.inventoryHistory || []).forEach(h => {
+        const d = h.period_date ? h.period_date.slice(0, 7) : '';
+        if (!d) return;
+        if (!histByMonth[d]) histByMonth[d] = { total: 0, items: 0 };
+        histByMonth[d].total += Number(h.total_sold || 0);
+        histByMonth[d].items += Number(h.units_sold || 0);
+      });
+      const months = Object.keys(histByMonth).sort();
+      if (!months.length) return '';
+      const grandTotal = months.reduce((s, m) => s + histByMonth[m].total, 0);
+      const monthNames = { '01': 'Ene', '02': 'Feb', '03': 'Mar', '04': 'Abr', '05': 'May', '06': 'Jun', '07': 'Jul', '08': 'Ago', '09': 'Sep', '10': 'Oct', '11': 'Nov', '12': 'Dic' };
+      return `
+        <section class="card" style="margin-top:18px">
+          <div class="card-head">
+            <div>
+              <h2>Ventas históricas (inventario)</h2>
+              <small style="color:var(--muted)">Datos importados · ${months.length} períodos · ${money(grandTotal)} total</small>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-top:12px">
+            ${months.map(m => {
+              const [yr, mo] = m.split('-');
+              const label = (monthNames[mo] || mo) + ' ' + yr;
+              const val = histByMonth[m].total;
+              return '<div style="background:var(--surface-2);border-radius:8px;padding:12px;text-align:center">' +
+                '<div style="font-size:12px;color:var(--muted)">' + label + '</div>' +
+                '<div style="font-size:18px;font-weight:700;margin-top:4px">' + money(val) + '</div>' +
+                '<div style="font-size:11px;color:var(--muted);margin-top:2px">' + histByMonth[m].items + ' unidades</div>' +
+                '</div>';
+            }).join('')}
+          </div>
+        </section>`;
+    })()}
 
 
     <div class="grid dashboard-main-grid">
@@ -13910,7 +13947,8 @@ async function syncFromApi(showToast = true) {
       expenses,
       inventoryMovements,
       cashRegister,
-      openAccounts
+      openAccounts,
+      inventoryHistory
     ] = await Promise.all([
       fetch(
         `${API_BASE}/api/products`
@@ -13957,11 +13995,20 @@ async function syncFromApi(showToast = true) {
           response.ok
             ? response.json()
             : []
+      ),
+
+      fetch(
+        `${API_BASE}/api/inventory/history?limit=2000`
+      ).then(response =>
+        response.ok
+          ? response.json()
+          : []
       )
     ]);
 
     state.products = products;
     state.inventoryMovements = inventoryMovements;
+    state.inventoryHistory = inventoryHistory;
 
     state.sales = sales.map(sale => ({
       db_id: sale.id,
