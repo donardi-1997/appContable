@@ -4011,8 +4011,11 @@ def list_inventory_history(
     period_from: str | None = None,
     period_to: str | None = None,
     source: str | None = None,
+    limit: int = 500,
     db: Session = Depends(get_db),
 ):
+    limit = max(1, min(limit, 2000))
+
     query = select(InventoryHistory)
 
     if product_id is not None:
@@ -4027,7 +4030,7 @@ def list_inventory_history(
     query = query.order_by(
         InventoryHistory.period_date.desc(),
         InventoryHistory.product_id,
-    )
+    ).limit(limit)
 
     records = db.scalars(query).all()
 

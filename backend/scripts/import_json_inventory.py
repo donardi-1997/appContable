@@ -220,6 +220,7 @@ class ImportReport:
     validation_errors: int = 0
     stock_updated: int = 0
     ideal_stock_updated: int = 0
+    price_updated: int = 0
     warnings: list[dict] = field(default_factory=list)
     errors_list: list[dict] = field(default_factory=list)
     skipped_products: list[str] = field(default_factory=list)
@@ -259,6 +260,7 @@ class ImportReport:
                 "validation_errors": self.validation_errors,
                 "stock_updated": self.stock_updated,
                 "ideal_stock_updated": self.ideal_stock_updated,
+                "price_updated": self.price_updated,
             },
             "warnings": self.warnings[:50],
             "errors": self.errors_list,
@@ -483,11 +485,18 @@ def update_product_stock_and_ideal(
         return
 
     product_latest: dict[int, dict] = {}
+    product_latest_valid_price: dict[int, tuple[datetime, Decimal]] = {}
+
     for rec in records:
         pid = rec["product_id"]
         pd = rec["period_date"]
         if pid not in product_latest or pd > product_latest[pid]["period_date"]:
             product_latest[pid] = rec
+
+        sp = rec.get("sale_price")
+        if sp and sp > Decimal("0"):
+            if pid not in product_latest_valid_price or pd > product_latest_valid_price[pid][0]:
+                product_latest_valid_price[pid] = (pd, sp)
 
     for pid, rec in product_latest.items():
         product = db.query(Product).filter(Product.id == pid).first()
@@ -503,6 +512,12 @@ def update_product_stock_and_ideal(
             if product.ideal_stock != rec["ideal_stock"]:
                 product.ideal_stock = rec["ideal_stock"]
                 report.ideal_stock_updated += 1
+
+        if product.price == Decimal("0") and pid in product_latest_valid_price:
+            valid_price = product_latest_valid_price[pid][1]
+            if valid_price > Decimal("0"):
+                product.price = valid_price
+                report.price_updated += 1
 
 
 def create_backup(db_path: Path) -> Path | None:
@@ -672,6 +687,7 @@ def print_report(report: ImportReport, dry_run: bool) -> None:
     print(f"Errores:               {report.errors}")
     print(f"Stock actualizado:     {report.stock_updated}")
     print(f"Stock ideal actual.:   {report.ideal_stock_updated}")
+    print(f"Precio actualizado:    {report.price_updated}")
     print(f"\nModo: {mode}")
     print(sep)
 
